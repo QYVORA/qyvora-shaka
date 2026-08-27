@@ -1,0 +1,10 @@
+[Desktop Entry]
+Type=Application
+Name=SHAKA
+GenericName=Active Directory Security Assessment Framework
+Comment=Authorized Active Directory/Windows security assessment, relationship correlation, and evidence-driven reporting
+Exec=@PREFIX@/bin/shaka
+Icon=@PREFIX@/share/icons/hicolor/512x512/apps/shaka.png
+Terminal=true
+Categories=Development;Security;Utility;
+Keywords=active-directory;windows;security;assessment;ldap;audit;

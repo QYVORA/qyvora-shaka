@@ -1,0 +1,52 @@
+# SHAKA configuration example
+# Copy to ~/.config/qyvora/shaka/config.yaml (or ~/.qyvora-shaka/config.yaml)
+# and edit. Values here match the keys loaded by internal/config; any key the
+# framework does not read is ignored. Configuration precedence (highest first):
+#   environment (QYVORA_SHAKA_*) > config file > built-in defaults.
+
+# Assessment profile. Controls how deep a run goes:
+#   quick | standard | deep | directory | authentication | trust |
+#   identity | compliance | research
+profile: standard
+
+# Default output format for the CLI: terminal (aliases: table, text) |
+# json | yaml | markdown | html.
+output: terminal
+
+# Logging level: debug | info | warn | error
+log:
+  level: info
+
+# Mark all runs as pre-authorized. Strong statement: only enable in
+# environments you control and trust. Equivalent to passing -y on every
+# command.
+authorized: false
+
+# Flags: equivalents of the --verbose / --quiet / --json CLI flags.
+verbose: false
+quiet: false
+json: false
+
+# Reporting: directory reports are written to, and the default format used
+# by `report` when no --format flag is given.
+report:
+  dir: reports
+  format: terminal   # terminal | json | markdown | html
+
+# LDAP transport defaults used for live directory connections.
+ldap:
+  port: 389          # used when no :port is given on --endpoint
+  timeout_seconds: 15
+  page_size: 500
+
+# Assessment depth and concurrency tuning.
+depth:
+  max: 6             # maximum relationship hops for graph traversal
+workers: 8
+concurrency:
+  discovery: 8
+  followup: 8
+
+# Session persistence. Empty = default working-directory ./sessions.
+session:
+  dir: ""

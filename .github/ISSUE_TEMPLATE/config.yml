@@ -1,0 +1,13 @@
+---
+name: Security vulnerability
+about: Do NOT use this template — report privately per SECURITY.md
+title: ""
+labels: ""
+assignees: ""
+---
+
+Do **not** file security vulnerabilities as public issues.
+
+Please report them privately: open a GitHub Security Advisory on this
+repository, or contact the maintainers per `SECURITY.md`. Reports should
+include affected version, impact, and reproduction steps.

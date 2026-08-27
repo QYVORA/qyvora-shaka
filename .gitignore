@@ -1,0 +1,28 @@
+# Build outputs
+bin/
+/shaka
+
+# Local development helpers (never committed)
+continue_AI.sh
+
+# Sessions, reports, evidence (may contain sensitive data)
+reports/
+/evidence/
+*.session.json
+sessions/
+
+# Local configuration
+*.local.yaml
+*.local.yml
+config.local.*
+.env
+
+# Editor/OS
+.DS_Store
+.idea/
+.vscode/
+*.swp
+
+# Test artifacts
+*.out
+coverage.*

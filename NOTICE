@@ -1,0 +1,40 @@
+SHAKA - Authorized Active Directory / Windows Security Assessment Framework
+
+Copyright 2026 QYVORA
+
+Licensed under the Apache License, Version 2.0 (the "License");
+you may not use this file except in compliance with the License.
+You may obtain a copy of the License at
+
+    http://www.apache.org/licenses/LICENSE-2.0
+
+Unless required by applicable law or agreed to in writing, software
+distributed under the License is distributed on an "AS IS" BASIS,
+WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+See the License for the specific language governing permissions and
+limitations under the License.
+
+Third-party licenses:
+
+This product includes software developed by the following projects:
+
+- spf13/cobra (Apache-2.0)
+- spf13/pflag (BSD-3-Clause)
+- spf13/viper (MIT)
+- spf13/afero (Apache-2.0)
+- spf13/cast (MIT)
+- fsnotify/fsnotify (BSD-3-Clause)
+- inconshreveable/mousetrap (Apache-2.0)
+- fatih/color (MIT)
+- mattn/go-colorable (MIT)
+- mattn/go-isatty (MIT)
+- pelletier/go-toml/v2 (MIT)
+- go-viper/mapstructure/v2 (MIT)
+- subosito/gotenv (MIT)
+- sagikazarmark/locafero (MIT)
+- sourcegraph/conc (MIT)
+- go.yaml.in/yaml/v3 (Apache-2.0)
+- golang.org/x/sys (BSD-3-Clause)
+- golang.org/x/text (BSD-3-Clause)
+
+Full license texts are available in the upstream module sources.

@@ -3,6 +3,7 @@ module github.com/QYVORA/qyvora-shaka
 go 1.26.5
 
 require (
+	github.com/chzyer/readline v1.5.1 // indirect
 	github.com/fatih/color v1.19.0 // indirect
 	github.com/fsnotify/fsnotify v1.9.0 // indirect
 	github.com/go-viper/mapstructure/v2 v2.4.0 // indirect

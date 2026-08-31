@@ -1,0 +1,45 @@
+version: 2
+
+before:
+  hooks:
+    - go mod tidy
+
+builds:
+  - main: ./cmd/shaka
+    goos:
+      - linux
+      - darwin
+      - windows
+    goarch:
+      - amd64
+      - arm64
+    ldflags:
+      - -s -w -X github.com/QYVORA/qyvora-shaka/internal/version.Version={{ .Version }}
+    env:
+      - CGO_ENABLED=0
+    flags:
+      - -trimpath
+
+archives:
+  - format: binary
+    # Anansi-style artifact names: macos (not darwin), matching the CI
+    # release workflow so install.sh and the SelfUpdate resolver agree.
+    name_template: "{{ .ProjectName }}-{{ if eq .Os \"darwin\" }}macos{{ else }}{{ .Os }}{{ end }}-{{ .Arch }}"
+
+checksum:
+  name_template: "checksums.txt"
+  algorithm: sha256
+
+release:
+  github:
+    owner: QYVORA
+    name: qyvora-shaka
+  prerelease: auto
+
+changelog:
+  sort: asc
+  filters:
+    exclude:
+      - "^docs:"
+      - "^test:"
+      - "^chore:"

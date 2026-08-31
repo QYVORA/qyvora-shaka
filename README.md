@@ -109,7 +109,27 @@ Kerberos/SMB protocol analysis, more rules, ecosystem integration).
 
 ## Install
 
-Requires Go (the `go.mod` pins the toolchain) to build from source.
+The quickest way is the zero-config installer — it detects your OS, CPU and
+shell, downloads the matching prebuilt binary from GitHub Releases (verified
+against the published `checksums.txt`), and falls back to building from
+source when no release is available yet:
+
+```sh
+curl -fsSL https://raw.githubusercontent.com/QYVORA/qyvora-shaka/master/install.sh | bash
+```
+
+On Windows, use the PowerShell installer — it downloads the checksum-verified
+binary under `%LOCALAPPDATA%\Programs\shaka\bin`, adds it to your PATH, and
+installs the shaka icon with a Start Menu shortcut:
+
+```powershell
+irm https://raw.githubusercontent.com/QYVORA/qyvora-shaka/master/install.ps1 | iex
+```
+
+On Linux, `install.sh` also installs the shaka app icon and a desktop entry so
+the tool appears with its logo in the app menu — not just a bare binary.
+
+Or build from source (requires Go):
 
 ```sh
 make build                # builds bin/shaka
@@ -133,7 +153,7 @@ shaka updates --install      # download, verify, install the latest release
 ```
 
 Updates check the official QYVORA GitHub releases, verify the artifact's
-SHA-256 against the published `SHA256SUMS`, and swap the binary in
+SHA-256 against the published `checksums.txt`, and swap the binary in
 atomically. Downgrades are refused; any failure leaves the installed binary
 untouched. No Go toolchain or Git is required.
 

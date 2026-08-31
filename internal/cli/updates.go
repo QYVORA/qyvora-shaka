@@ -19,19 +19,20 @@ func shakaUpdateConfig() selfupdate.Config {
 		Repo:           "qyvora-shaka",
 		ToolName:       "shaka",
 		CurrentVersion: version.String,
+		// Release binaries use anansi-style names: macos (not darwin) and a
+		// .exe suffix for windows.
 		ArtifactName: func(goos, goarch string) string {
-			ext := tarExt(goos)
-			return "shaka_" + goos + "_" + goarch + ext
+			name := fmt.Sprintf("shaka-%s-%s", goos, goarch)
+			if goos == "darwin" {
+				name = fmt.Sprintf("shaka-macos-%s", goarch)
+			}
+			if goos == "windows" {
+				name += ".exe"
+			}
+			return name
 		},
-		ChecksumAsset: func(string) string { return "SHA256SUMS" },
+		ChecksumAsset: func(string) string { return "checksums.txt" },
 	}
-}
-
-func tarExt(goos string) string {
-	if goos == "windows" {
-		return ".zip"
-	}
-	return ".tar.gz"
 }
 
 func newUpdatesCmd() *cobra.Command {

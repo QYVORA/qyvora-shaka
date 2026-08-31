@@ -1,17 +1,18 @@
-name: Release
-
-on:
-  push:
-    tags: ["v*"]
+name: Build & Release
 
 permissions:
   contents: write
 
+on:
+  push:
+    tags:
+      - 'v*'
+
 jobs:
   build:
+    name: Build binaries
     runs-on: ubuntu-latest
     strategy:
-      fail-fast: false
       matrix:
         include:
           - goos: linux
@@ -22,57 +23,79 @@ jobs:
             name: shaka-linux-arm64
           - goos: darwin
             goarch: amd64
-            name: shaka-darwin-amd64
+            name: shaka-macos-amd64
           - goos: darwin
             goarch: arm64
-            name: shaka-darwin-arm64
+            name: shaka-macos-arm64
           - goos: windows
             goarch: amd64
             name: shaka-windows-amd64.exe
           - goos: windows
             goarch: arm64
             name: shaka-windows-arm64.exe
-    steps:
-      - uses: actions/checkout@v4
 
-      - uses: actions/setup-go@v5
+    steps:
+      - uses: actions/checkout@v6
+
+      - name: Set up Go
+        uses: actions/setup-go@v6
         with:
           go-version-file: go.mod
 
+      # Gate the release on the full test suite so a broken tag can never
+      # publish binaries.
       - name: Test
-        run: go test ./...
+        run: go test ./... -count=1 -timeout 120s
 
-      - name: Build binary
-        # Stamp version metadata via the current module path; a stale module
-        # path here would silently no-op and release binaries reporting "dev".
+      - name: Build
+        env:
+          GOOS: ${{ matrix.goos }}
+          GOARCH: ${{ matrix.goarch }}
+          CGO_ENABLED: '0'
         run: |
-          mkdir -p dist
-          GOOS=${{ matrix.goos }} GOARCH=${{ matrix.goarch }} go build -trimpath \
-            -ldflags "-s -w \
+          go build -trimpath \
+            -ldflags="-s -w \
             -X github.com/QYVORA/qyvora-shaka/internal/version.Version=${{ github.ref_name }} \
             -X github.com/QYVORA/qyvora-shaka/internal/version.Commit=${{ github.sha }} \
             -X github.com/QYVORA/qyvora-shaka/internal/version.Date=$(date -u +%Y-%m-%dT%H:%M:%SZ)" \
-            -o dist/${{ matrix.name }} ./cmd/shaka
+            -o ${{ matrix.name }} ./cmd/shaka
 
       - name: Upload artifact
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v6
         with:
           name: ${{ matrix.name }}
-          path: dist/${{ matrix.name }}
+          path: ${{ matrix.name }}
 
-  checksums:
-    runs-on: ubuntu-latest
+  release:
+    name: Create release
     needs: build
+    runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
-      - name: Download binaries
-        uses: actions/download-artifact@v4
+      - uses: actions/download-artifact@v8
         with:
-          path: dist
+          path: ./binaries
           merge-multiple: true
-      - name: Checksums
-        run: cd dist && sha256sum * > SHA256SUMS
-      - name: Release
-        uses: softprops/action-gh-release@v2
-        with:
-          files: dist/*
+
+      - uses: actions/checkout@v6
+
+      - name: Add branding icons
+        run: |
+          cd ./binaries
+          cp "${{ github.workspace }}/assets/shaka.png" shaka.png
+          cp "${{ github.workspace }}/assets/shaka.ico" shaka.ico
+
+      - name: Generate checksums.txt
+        run: |
+          cd ./binaries
+          sha256sum * > checksums.txt
+          cat checksums.txt
+
+      - name: Create GitHub Release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          cd ./binaries
+          gh release create "${{ github.ref_name }}" \
+            --title "${{ github.ref_name }}" \
+            --generate-notes \
+            ./*

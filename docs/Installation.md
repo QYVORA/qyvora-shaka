@@ -2,7 +2,9 @@
 
 ## Requirements
 
-- **Go** (build from source). The project's `go.mod` pins the toolchain.
+- **Go** (build from source only — the prebuilt binaries published on every
+  release have no runtime dependencies). The project's `go.mod` pins the
+  toolchain.
 - An **authorized** directory/domain for live assessments. None is needed to
   build, test, or run the offline demo (`shaka assess --sim`).
 
@@ -17,6 +19,39 @@ This produces `bin/shaka`. Or manually:
 ```sh
 go build -o bin/shaka ./cmd/shaka
 ```
+
+## Install script
+
+The zero-config installer detects your operating system, CPU architecture and
+shell, downloads the matching prebuilt binary from GitHub Releases (verifying
+its SHA-256 against the published `checksums.txt`), and falls back to building
+from source when no release is available yet. By default it installs under
+`~/.local` and adds the directory to your `PATH` (sudo is only used when
+installing system-wide):
+
+```sh
+curl -fsSL https://raw.githubusercontent.com/QYVORA/qyvora-shaka/master/install.sh | bash
+```
+
+Or from a checkout:
+
+```sh
+./install.sh
+```
+
+On Linux the installer also installs the shaka app icon and a `.desktop`
+entry so shaka appears with its logo in the application menu.
+
+### Windows
+
+```powershell
+irm https://raw.githubusercontent.com/QYVORA/qyvora-shaka/master/install.ps1 | iex
+```
+
+Installs the checksum-verified binary under `%LOCALAPPDATA%\Programs\shaka\bin`,
+adds it to your user PATH, installs the shaka icon, and creates a Start Menu
+shortcut. Pin `$env:SHAKA_VERSION` or `$env:SHAKA_PREFIX` to control the
+version or install location.
 
 ## Install into your environment
 
@@ -88,7 +123,7 @@ What it does:
    (`github.com/QYVORA/qyvora-shaka/releases`); no other source is contacted.
 3. Compares versions semantically and reports whether an update exists.
 4. Downloads the artifact built for your OS and CPU architecture.
-5. Verifies its SHA-256 against the `SHA256SUMS` manifest published with the
+5. Verifies its SHA-256 against the `checksums.txt` manifest published with the
    release; installation never proceeds on a mismatch or when no verifiable
    checksum exists.
 6. Swaps the new binary in atomically, preserving the original file

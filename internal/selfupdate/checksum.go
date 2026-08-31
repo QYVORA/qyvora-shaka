@@ -14,7 +14,7 @@ func hashBytes(data []byte) string {
 	return hex.EncodeToString(sum[:])
 }
 
-// verifyChecksumManifest parses a SHA256SUMS-style manifest and returns the
+// verifyChecksumManifest parses a SHA-256 manifest (checksums.txt-style) and returns the
 // expected digest for artifactName. It returns an *UpdateError when the
 // artifact is absent from the manifest.
 func verifyChecksumManifest(manifest []byte, artifactName string, data []byte) error {

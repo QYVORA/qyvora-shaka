@@ -21,7 +21,7 @@ builds:
       - -trimpath
 
 archives:
-  - format: binary
+  - formats: [binary]
     # Anansi-style artifact names: macos (not darwin), matching the CI
     # release workflow so install.sh and the SelfUpdate resolver agree.
     name_template: "{{ .ProjectName }}-{{ if eq .Os \"darwin\" }}macos{{ else }}{{ .Os }}{{ end }}-{{ .Arch }}"

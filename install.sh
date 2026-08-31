@@ -186,7 +186,7 @@ install_release() {
 # ---------------------------------------------------------------------------
 install_from_source() {
     if ! command -v go >/dev/null 2>&1; then
-        die "No prebuilt binary available and Go is not installed. Install Go 1.22+ from https://go.dev and re-run this script."
+        die "No prebuilt binary available and Go is not installed. Install Go 1.26+ from https://go.dev and re-run this script."
     fi
 
     # Running inside a checkout of the repo? Build straight from the working

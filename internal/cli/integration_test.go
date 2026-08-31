@@ -1,6 +1,7 @@
 package cli
 
 import (
+	"context"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -14,10 +15,10 @@ func TestMain(m *testing.M) {
 	if err != nil {
 		panic(err)
 	}
-	defer os.RemoveAll(dir)
+	defer func() { _ = os.RemoveAll(dir) }()
 
 	binPath = filepath.Join(dir, "shaka")
-	cmd := exec.Command("go", "build", "-o", binPath, "github.com/QYVORA/qyvora-shaka/cmd/shaka")
+	cmd := exec.CommandContext(context.Background(), "go", "build", "-o", binPath, "github.com/QYVORA/qyvora-shaka/cmd/shaka")
 	cmd.Dir = "../.."
 	out, err := cmd.CombinedOutput()
 	if err != nil {
@@ -34,9 +35,9 @@ func runShaka(t *testing.T, stdin ioReader, args ...string) (int, string) {
 	if err != nil {
 		t.Fatalf("mkdtemp: %v", err)
 	}
-	defer os.RemoveAll(work)
+	defer func() { _ = os.RemoveAll(work) }()
 
-	c := exec.Command(binPath, args...)
+	c := exec.CommandContext(context.Background(), binPath, args...)
 	c.Dir = work
 	if stdin != nil {
 		c.Stdin = stdin
@@ -60,8 +61,8 @@ func TestAssessSimWritesSessionAndExitsZero(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer os.RemoveAll(work)
-	c := exec.Command(binPath, "assess", "--sim")
+	defer func() { _ = os.RemoveAll(work) }()
+	c := exec.CommandContext(context.Background(), binPath, "assess", "--sim")
 	c.Dir = work
 	if out2, err := c.CombinedOutput(); err != nil {
 		t.Fatalf("assess --sim: %v: %s", err, out2)

@@ -56,11 +56,10 @@ const pagedResultsOID = "1.2.840.113556.1.4.319"
 
 // Client is a read-only LDAP client over TCP (optionally TLS).
 type Client struct {
-	conn     net.Conn
-	msgID    int
-	rootBase string
-	timeout  time.Duration
-	closed   bool
+	conn    net.Conn
+	msgID   int
+	timeout time.Duration
+	closed  bool
 }
 
 // Options configures a connection.
@@ -83,7 +82,8 @@ func Dial(ctx context.Context, opts Options) (*Client, error) {
 	var err error
 	if opts.UseTLS {
 		cfg := &tls.Config{InsecureSkipVerify: opts.Insecure}
-		conn, err = tls.DialWithDialer(dialer, "tcp", opts.Address, cfg)
+		tlsDialer := &tls.Dialer{NetDialer: dialer, Config: cfg}
+		conn, err = tlsDialer.DialContext(ctx, "tcp", opts.Address)
 	} else {
 		conn, err = dialer.DialContext(ctx, "tcp", opts.Address)
 	}
@@ -117,7 +117,7 @@ func (e *BindError) Error() string { return "ldap: bind rejected: " + e.Result }
 // Bind performs a LDAPv3 simple bind.
 func (c *Client) Bind(ctx context.Context, user, password string) error {
 	_ = c.conn.SetDeadline(deadlineFrom(ctx, c.timeout))
-	var body []byte
+	body := make([]byte, 0, 5+len(user)+len(password))
 	body = append(body, berInt(3)...) // LDAPv3
 	body = append(body, berString(user)...)
 	body = append(body, tagBytes(0x80, []byte(password))...)
@@ -686,7 +686,7 @@ func pagedResultsControl(pageSize int, cookie []byte) []byte {
 	value = append(value, berString(string(cookie))...)
 	value = appendTag(0x30, value)
 
-	var ctrl []byte
+	ctrl := make([]byte, 0, len(pagedResultsOID)+1)
 	ctrl = append(ctrl, berString(pagedResultsOID)...)
 	ctrl = append(ctrl, berBool(false)...)
 	ctrl = append(ctrl, appendTag(0x04, value)...)

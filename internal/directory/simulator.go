@@ -41,7 +41,7 @@ func (s *simService) Kind() Kind { return KindSim }
 
 func (s *simService) Describe() string { return "simulator " + s.sim.BaseDN }
 
-func (s *simService) Ping(ctx context.Context) error { return nil }
+func (s *simService) Ping(_ context.Context) error { return nil }
 
 func (s *simService) RootBaseDN() (string, error) {
 	if s.sim.BaseDN != "" {
@@ -50,7 +50,7 @@ func (s *simService) RootBaseDN() (string, error) {
 	return s.sim.DefaultBase, nil
 }
 
-func (s *simService) Search(ctx context.Context, baseDN, filter string, attrs []string) ([]*transport.Entry, error) {
+func (s *simService) Search(ctx context.Context, baseDN, filter string, _ []string) ([]*transport.Entry, error) {
 	res, err := s.sim.Search(ctx, baseDN, filter)
 	if err != nil {
 		return nil, err

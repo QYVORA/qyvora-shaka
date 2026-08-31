@@ -28,7 +28,7 @@ type Engine struct {
 }
 
 // DiscoverDomains discovers the domain model and default base DN.
-func (e *Engine) DiscoverDomains(ctx context.Context) ([]*models.Domain, string, error) {
+func (e *Engine) DiscoverDomains(_ context.Context) ([]*models.Domain, string, error) {
 	base, err := e.Dir.RootBaseDN()
 	if err != nil {
 		return nil, "", err

@@ -99,7 +99,7 @@ func (s *ldapService) Kind() Kind { return KindLDAP }
 
 func (s *ldapService) Describe() string { return "LDAP " + s.endpoint }
 
-func (s *ldapService) Ping(ctx context.Context) error {
+func (s *ldapService) Ping(_ context.Context) error {
 	if _, err := s.RootBaseDN(); err != nil {
 		return err
 	}

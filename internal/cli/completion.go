@@ -8,7 +8,7 @@ func newCompletionCmd() *cobra.Command {
 	cmd := &cobra.Command{
 		Use:       "completion [bash|zsh|fish|powershell]",
 		Short:     "Generate shell completion script",
-		Args:      cobra.ExactValidArgs(1),
+		Args:      cobra.MatchAll(cobra.ExactArgs(1), cobra.OnlyValidArgs),
 		ValidArgs: []string{"bash", "zsh", "fish", "powershell"},
 		RunE: func(cmd *cobra.Command, args []string) error {
 			switch args[0] {

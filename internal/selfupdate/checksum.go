@@ -4,7 +4,6 @@ import (
 	"bufio"
 	"crypto/sha256"
 	"encoding/hex"
-	"io"
 	"strings"
 )
 
@@ -44,14 +43,4 @@ func verifyChecksumManifest(manifest []byte, artifactName string, data []byte) e
 			"expected "+expected+" got "+actual, nil)
 	}
 	return nil
-}
-
-// hashReader computes the SHA-256 of r while copying to dst. It returns the
-// hex digest.
-func hashReader(dst io.Writer, r io.Reader) (string, error) {
-	h := sha256.New()
-	if _, err := io.Copy(io.MultiWriter(dst, h), r); err != nil {
-		return "", err
-	}
-	return hex.EncodeToString(h.Sum(nil)), nil
 }

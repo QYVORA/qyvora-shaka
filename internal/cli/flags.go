@@ -45,11 +45,3 @@ func flagBool(cmd *cobra.Command, name string) bool {
 	v, _ := cmd.Flags().GetBool(name)
 	return v
 }
-
-func flagInt(cmd *cobra.Command, name string) int {
-	if cmd == nil || cmd.Flags() == nil {
-		return 0
-	}
-	v, _ := cmd.Flags().GetInt(name)
-	return v
-}

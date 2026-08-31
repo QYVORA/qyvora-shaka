@@ -11,15 +11,6 @@ import (
 	"github.com/QYVORA/qyvora-shaka/pkg/models"
 )
 
-// Accounts that are privileged by role in Active Directory.
-var privilegedGroups = map[string]bool{
-	"domain admins": true, "enterprise admins": true,
-	"schema admins": true, "administrators": true, "account operators": true,
-	"server operators": true, "print operators": true, "backup operators": true,
-	"replicator": true, "dnsadmins": true, "group policy creators owners": true,
-	"protected users": true, "cert publishers": true,
-}
-
 // Builtin returns shaka's built-in rule set.
 func Builtin() []*rules.Rule {
 	return []*rules.Rule{

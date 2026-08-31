@@ -131,16 +131,6 @@ func seedComputers(env *core.Env) {
 	}
 }
 
-func seedGroupNodes(env *core.Env) {
-	for _, g := range env.Session.Groups {
-		if g == nil {
-			continue
-		}
-		id := nodeID("group", g.ID)
-		env.Graph.UpsertNode(&models.Node{ID: id, Kind: models.NodeGroup, Label: labelOf(g.Name, g.SAMAccount), Domain: g.Domain})
-	}
-}
-
 func nodeID(kind, id string) string {
 	return kind + ":" + id
 }

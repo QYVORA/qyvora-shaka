@@ -80,7 +80,7 @@ var (
 // IsAllowed reports whether an operation may run under the given profile and
 // escalation flags. Deep/research profiles allow read-only S1 operations
 // freely; offensive S3/S4 work is never part of the initial release.
-func IsAllowed(op OperationMetadata, profile string, confirmed bool, safeOnly bool) bool {
+func IsAllowed(op OperationMetadata, _ string, confirmed bool, safeOnly bool) bool {
 	if op.Risk.RequiresConfirmation() {
 		if safeOnly && op.Risk.Rank() >= models.RiskS3.Rank() {
 			return false
@@ -89,5 +89,5 @@ func IsAllowed(op OperationMetadata, profile string, confirmed bool, safeOnly bo
 			return false
 		}
 	}
-	return op.ChangesState == false || op.Reversible
+	return !op.ChangesState || op.Reversible
 }

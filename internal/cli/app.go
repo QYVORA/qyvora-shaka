@@ -72,7 +72,7 @@ func (a *appState) emitf(format string, args ...any) {
 }
 
 // resolveEvents configures the event stream sink.
-func (a *appState) resolveEvents(ctx context.Context) error {
+func (a *appState) resolveEvents(_ context.Context) error {
 	var w io.Writer
 	switch a.eventsF {
 	case "", "off":

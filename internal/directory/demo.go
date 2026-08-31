@@ -91,16 +91,14 @@ func addUser(sim *Simulator, base, sam, name, upn string, admin bool) {
 	sim.Add(&transport.Entry{DN: "CN=" + name + ",CN=Users," + base, Attributes: attrs})
 }
 
-func addGroup(sim *Simulator, base, sam, name string, security bool, members []string) {
+func addGroup(sim *Simulator, base, sam, name string, _ bool, members []string) {
 	attrs := map[string][]string{
 		"objectClass": {"group"}, "objectCategory": {"group"},
 		"cn": {name}, "name": {name}, "sAMAccountName": {sam},
 		"distinguishedName": {"CN=" + name + ",CN=Users," + base},
 		"groupType":         {"-2147483646"},
 	}
-	for _, m := range members {
-		attrs["member"] = append(attrs["member"], m)
-	}
+	attrs["member"] = append(attrs["member"], members...)
 	sim.Add(&transport.Entry{DN: "CN=" + name + ",CN=Users," + base, Attributes: attrs})
 }
 

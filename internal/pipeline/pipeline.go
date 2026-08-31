@@ -141,7 +141,7 @@ type AnalysisStage struct{ FollowUp bool }
 func (s *AnalysisStage) Name() string { return "analysis" }
 
 // Run implements core.Stage.
-func (s *AnalysisStage) Run(ctx context.Context, env *core.Env) error {
+func (s *AnalysisStage) Run(_ context.Context, env *core.Env) error {
 	// Identity / privilege correlation.
 	env.Session.Attributes = map[string]string{}
 	env.Session.Attributes["identity"] = jsonify(runIdentity(env.Session))
@@ -163,7 +163,7 @@ type FindingsStage struct{}
 func (s *FindingsStage) Name() string { return "findings" }
 
 // Run implements core.Stage.
-func (s *FindingsStage) Run(ctx context.Context, env *core.Env) error {
+func (s *FindingsStage) Run(_ context.Context, env *core.Env) error {
 	res := evalRules(env)
 	for _, f := range res {
 		env.Session.AddFinding(f)
@@ -183,7 +183,7 @@ type RiskStage struct{}
 func (s *RiskStage) Name() string { return "risk" }
 
 // Run implements core.Stage.
-func (s *RiskStage) Run(ctx context.Context, env *core.Env) error {
+func (s *RiskStage) Run(_ context.Context, env *core.Env) error {
 	score, level := computeRisk(env.Session.Findings)
 	env.Session.RiskScore = score
 	env.Session.RiskLevel = level

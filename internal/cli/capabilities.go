@@ -1,8 +1,6 @@
 package cli
 
 import (
-	"sort"
-
 	"github.com/spf13/cobra"
 
 	"github.com/QYVORA/qyvora-shaka/internal/capabilities"
@@ -49,15 +47,4 @@ func yes(b bool) string {
 		return "yes"
 	}
 	return "no"
-}
-
-// capabilityIDs returns the sorted IDs for completion use.
-func capabilityIDs() []string {
-	c := capabilities.Catalog()
-	ids := make([]string, 0, len(c))
-	for _, t := range c {
-		ids = append(ids, t.ID)
-	}
-	sort.Strings(ids)
-	return ids
 }

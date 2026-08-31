@@ -73,7 +73,7 @@ func ScoreFor(f *models.Finding) Risk {
 
 // Assess computes the target-level risk from a collection of findings.
 // Findings that were ruled a false positive or resolved are excluded.
-func (a *Assessor) Assess(ctx context.Context, findings []*models.Finding) (int, string) {
+func (a *Assessor) Assess(_ context.Context, findings []*models.Finding) (int, string) {
 	var total float64
 	var maxWeight float64
 	excluded := 0

@@ -157,7 +157,7 @@ func runEnumerate(ctx context.Context, cmd *cobra.Command, object string, limit 
 }
 
 // runAnalyze renders the latest session's findings/risk.
-func runAnalyze(ctx context.Context, cmd *cobra.Command) error {
+func runAnalyze(ctx context.Context, _ *cobra.Command) error {
 	sess, err := latestSession()
 	if err != nil {
 		return err
@@ -165,7 +165,7 @@ func runAnalyze(ctx context.Context, cmd *cobra.Command) error {
 	return renderSession(ctx, sess)
 }
 
-func runFindings(ctx context.Context) error {
+func runFindings(_ context.Context) error {
 	sess, err := latestSession()
 	if err != nil {
 		return err
@@ -173,7 +173,7 @@ func runFindings(ctx context.Context) error {
 	return renderFindings(sess)
 }
 
-func runEvidence(ctx context.Context) error {
+func runEvidence(_ context.Context) error {
 	sess, err := latestSession()
 	if err != nil {
 		return err
@@ -181,7 +181,7 @@ func runEvidence(ctx context.Context) error {
 	return renderEvidence(sess)
 }
 
-func runGraph(ctx context.Context) error {
+func runGraph(_ context.Context) error {
 	sess, err := latestSession()
 	if err != nil {
 		return err
@@ -189,7 +189,7 @@ func runGraph(ctx context.Context) error {
 	return renderGraph(sess)
 }
 
-func runReport(ctx context.Context, format, out string) error {
+func runReport(_ context.Context, format, out string) error {
 	sess, err := latestSession()
 	if err != nil {
 		return err

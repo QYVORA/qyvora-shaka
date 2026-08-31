@@ -101,7 +101,7 @@ func (r *Runner) Run(ctx context.Context) (*Result, error) {
 	return &Result{Session: ses, Env: env}, nil
 }
 
-func (r *Runner) buildPipeline(env *core.Env) *orchestration.Pipeline {
+func (r *Runner) buildPipeline(_ *core.Env) *orchestration.Pipeline {
 	p := orchestration.NewPipeline()
 	o := r.Options
 	all := !o.Discover && !o.Enumerate && !o.Graph && !o.Analysis && !o.Findings && !o.Risk

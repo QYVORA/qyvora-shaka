@@ -137,15 +137,6 @@ func (p *Printer) PrintTable(header []string, rows [][]string) {
 	}
 	_, _ = fmt.Fprintln(p.writer)
 
-	totalWidth := 0
-	for i, w := range colWidths {
-		if i > 0 {
-			totalWidth += 2
-		}
-		totalWidth += w
-	}
-	_, _ = fmt.Fprintln(p.writer, strings.Repeat("─", totalWidth))
-
 	for idx, row := range rows {
 		for i, cell := range row {
 			if i > 0 {

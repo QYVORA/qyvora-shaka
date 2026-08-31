@@ -65,20 +65,14 @@ func (u *consoleUI) DimWhite(s string) string  { return u.paint(s, ansiDim+ansiW
 func (u *consoleUI) Section(title string) {
 	label := strings.TrimSpace(title)
 	if label == "" {
-		u.Rule()
+		_, _ = fmt.Fprintln(u.w)
 		return
 	}
-	inner := consoleSectionWidth - runeWidth(label) - 2
-	if inner < 2 {
-		inner = 2
-	}
-	left := inner / 2
-	right := inner - left
-	_, _ = fmt.Fprintf(u.w, "\n%s\n", u.DimWhite(strings.Repeat("─", left)+" "+label+" "+strings.Repeat("─", right)))
+	_, _ = fmt.Fprintf(u.w, "\n  %s\n", u.BoldBlue(strings.ToUpper(label)))
 }
 
 func (u *consoleUI) Rule() {
-	_, _ = fmt.Fprintln(u.w, u.DimWhite(strings.Repeat("─", consoleSectionWidth)))
+	_, _ = fmt.Fprintln(u.w)
 }
 
 func (u *consoleUI) KV(key, value string) {

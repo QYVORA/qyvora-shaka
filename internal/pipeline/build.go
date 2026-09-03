@@ -1,6 +1,8 @@
 package pipeline
 
 import (
+	"strings"
+
 	"github.com/QYVORA/qyvora-shaka/internal/core"
 	"github.com/QYVORA/qyvora-shaka/pkg/models"
 )
@@ -131,6 +133,84 @@ func seedComputers(env *core.Env) {
 	}
 }
 
+// seedTrusts creates domain↔domain trust edges so trust relationships carry
+// real cross-domain escalation semantics and appear in attack paths.
+func seedTrusts(env *core.Env) {
+	for _, t := range env.Session.Trusts {
+		if t == nil {
+			continue
+		}
+		from := nodeID("domain", domainNodeID(env, t.SourceDomain))
+		to := nodeID("domain", domainNodeID(env, t.TargetDomain))
+
+		env.Graph.UpsertNode(&models.Node{ID: from, Kind: models.NodeDomain, Label: t.SourceDomain, Domain: t.SourceDomain})
+		env.Graph.UpsertNode(&models.Node{ID: to, Kind: models.NodeDomain, Label: t.TargetDomain, Domain: t.TargetDomain})
+
+		// "trusts" edge: source domain names the target as a trusted domain,
+		// granting authentication flow across the boundary (real escalation).
+		env.Graph.AddEdge(&models.Edge{
+			ID: nodeID("e", t.ID+"-trusts"), From: from, To: to,
+			Type: models.RelTrusts, Source: "enumeration",
+			Confidence: models.ConfidenceHigh,
+		})
+		if t.Direction == "inbound" || t.Direction == "bidirectional" {
+			env.Graph.AddEdge(&models.Edge{
+				ID: nodeID("e", t.ID+"-trusted_by"), From: to, To: from,
+				Type: models.RelTrustedBy, Source: "enumeration",
+				Confidence: models.ConfidenceHigh,
+			})
+		}
+	}
+}
+
+// domainNodeID returns a stable node id for a domain label, preferring an
+// existing domain node id when present so trust edges join known domains.
+func domainNodeID(env *core.Env, name string) string {
+	if d := env.Session.DomainByName(name); d != nil {
+		return d.ID
+	}
+	return "dom_" + normalizeLabel(name)
+}
+
+func normalizeLabel(s string) string {
+	out := make([]byte, 0, len(s))
+	for i := 0; i < len(s); i++ {
+		c := s[i]
+		switch {
+		case c >= 'a' && c <= 'z', c >= '0' && c <= '9':
+			out = append(out, c)
+		case c >= 'A' && c <= 'Z':
+			out = append(out, c+('a'-'A'))
+		case c == '.' || c == '-':
+			out = append(out, '_')
+		}
+	}
+	return string(out)
+}
+
+// recordTrustEvidence records a stable, hashable evidence item for each trust
+// and links it to the session so reporting can trace the relationship.
+func recordTrustEvidence(env *core.Env, trusts []*models.Trust) {
+	if env.Evidence == nil {
+		return
+	}
+	for _, t := range trusts {
+		if t == nil {
+			continue
+		}
+		ev := env.Evidence.Add(&models.Evidence{
+			Kind:   "relationship",
+			Source: "LDAP://" + t.SourceDomain + "/trustedDomain/" + t.TargetDomain,
+			Target: t.TargetDomain,
+			Data:   t.SourceDomain + "->" + t.TargetDomain + "(" + t.Type + "/" + t.Direction + ")",
+			State:  models.StateObserved,
+		})
+		if ev != nil {
+			env.Session.AddEvidence(ev)
+		}
+	}
+}
+
 func nodeID(kind, id string) string {
 	return kind + ":" + id
 }
@@ -140,4 +220,80 @@ func labelOf(name, fallback string) string {
 		return name
 	}
 	return fallback
+}
+
+// seedEscalation adds real privilege-escalation edges to the graph. Unlike
+// pure membership containment, these edges model the security semantics that
+// BloodHound and ACL analysis expose:
+//
+//   - AdminOf:  privileged principals (adminCount, Domain Admins member,
+//     backup operators, etc.) have direct administrative control over their
+//     domain — a real escalation boundary crossing.
+//
+//   - Kerberoastable: accounts with registered SPNs are sensitive targets
+//     (an attacker holding any domain credential can request a crackable
+//     TGS). These users are treated as sensitive destinations for path
+//     analysis.
+//
+// Every edge is grounded in observed directory attributes, never assumed.
+func seedEscalation(env *core.Env) {
+	privileged := map[string]bool{}
+	for _, g := range env.Session.Groups {
+		if g == nil {
+			continue
+		}
+		if g.AdminCount || isPrivilegedGroupName(g.Name) {
+			for _, m := range g.Members {
+				privileged[m] = true
+			}
+		}
+	}
+	for _, u := range env.Session.Users {
+		if u == nil {
+			continue
+		}
+		id := nodeID("user", u.ID)
+		dom := env.Session.DomainByName(u.Domain)
+		if dom == nil {
+			continue
+		}
+		domID := nodeID("domain", dom.ID)
+		// adminOf domain: adminCount users and privileged-group members
+		if u.AdminCount || privileged[u.DistName] {
+			env.Graph.AddEdge(&models.Edge{
+				ID: nodeID("e", u.ID+"-admin_of"), From: id, To: domID,
+				Type: models.RelAdminOf, Source: "enumeration",
+				Confidence: models.ConfidenceHigh,
+			})
+			// Group members inherit escalation: a user who IS a privileged group
+			// member also holds adminOf the domain.
+		}
+		// Kerberoastable: SPN-bearing users are sensitive targets; mark with
+		// a has_privilege edge to a resource-like node representing the
+		// kerberoastable property, so attack paths that land on them are
+		// semantically meaningful.
+		if len(u.ServicePrincipalNames) > 0 {
+			kerbID := nodeID("kerberoastable", u.ID)
+			env.Graph.UpsertNode(&models.Node{
+				ID: kerbID, Kind: models.NodeResource,
+				Label: u.SAMAccount + " (kerberoastable)", Domain: u.Domain,
+			})
+			env.Graph.AddEdge(&models.Edge{
+				ID: nodeID("e", u.ID+"-has_spn"), From: id, To: kerbID,
+				Type: models.RelHasPrivilege, Source: "enumeration",
+				Confidence: models.ConfidenceHigh,
+			})
+		}
+	}
+}
+
+func isPrivilegedGroupName(name string) bool {
+	switch strings.ToLower(name) {
+	case "domain admins", "enterprise admins", "schema admins",
+		"administrators", "account operators", "server operators",
+		"print operators", "backup operators", "dnsadmins",
+		"group policy creators owners", "cert publishers":
+		return true
+	}
+	return false
 }

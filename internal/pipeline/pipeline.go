@@ -110,9 +110,21 @@ func (s *EnumerationStage) Run(ctx context.Context, env *core.Env) error {
 			env.Session.OUs = ous
 		}
 		if s.IncludeTrusts {
-			env.Session.Trusts = []*models.Trust{}
+			te := enumeration.TrustEnumerator{Dir: env.Dir, Events: env.Events}
+			trusts, err := te.Enumerate(ctx, base, s.Limit)
+			if err != nil {
+				env.Session.Trusts = []*models.Trust{}
+				env.Log.Warnf("trust enumeration: %v", err)
+			} else if len(trusts) > 0 {
+				env.Session.Trusts = trusts
+				seedTrusts(env)
+				recordTrustEvidence(env, trusts)
+			}
 		}
 	}
+	// Add security-escalation edges (AdminOf, kerberoastable targets) so the
+	// graph carries real privilege semantics rather than membership containment.
+	seedEscalation(env)
 	return nil
 }
 
@@ -131,6 +143,13 @@ func (s *GraphStage) Run(_ context.Context, env *core.Env) error {
 	// captures how principals relate to privileged groups.
 	env.Session.Nodes = env.Graph.Nodes()
 	env.Session.Edges = env.Graph.Edges()
+	// Flush the evidence store into the session so findings and reporting can
+	// trace every relationship and object back to its collection source.
+	if env.Evidence != nil {
+		for _, ev := range env.Evidence.All() {
+			env.Session.AddEvidence(ev)
+		}
+	}
 	return nil
 }
 

@@ -24,6 +24,13 @@ func DefaultEngine() *rules.Engine {
 // findings to the session.
 func evalRules(env *core.Env) []*models.Finding {
 	engine := DefaultEngine()
+	byHash := map[string][]*models.Evidence{}
+	for _, ev := range env.Session.Evidence {
+		if ev == nil {
+			continue
+		}
+		byHash[ev.Hash] = append(byHash[ev.Hash], ev)
+	}
 	ctx := rules.Context{
 		Users:     env.Session.Users,
 		Groups:    env.Session.Groups,
@@ -31,6 +38,7 @@ func evalRules(env *core.Env) []*models.Finding {
 		Domains:   env.Session.Domains,
 		Trusts:    env.Session.Trusts,
 		OUs:       env.Session.OUs,
+		Evidence:  byHash,
 	}
 	return engine.Eval(ctx)
 }

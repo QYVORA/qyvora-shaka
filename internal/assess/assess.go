@@ -110,7 +110,7 @@ func (r *Runner) buildPipeline(_ *core.Env) *orchestration.Pipeline {
 	}
 	if o.Enumerate || all {
 		p.Add(&pipeline.EnumerationStage{Options: pipeline.Options{
-			Limit: o.Limit, GroupsOnly: o.GroupsOnly,
+			Limit: o.Limit, GroupsOnly: o.GroupsOnly, IncludeTrusts: true,
 		}})
 	}
 	if o.Graph || all {

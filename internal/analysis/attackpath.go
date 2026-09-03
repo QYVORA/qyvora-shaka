@@ -56,7 +56,7 @@ func (a *AttackPathAnalyzer) Analyze(maxDepth int) []AttackPath {
 				continue
 			}
 			seen[key] = true
-			risk := riskOf(path)
+			risk := a.riskOf(path)
 			paths = append(paths, AttackPath{
 				Source: path.Source, Destination: path.Destination,
 				Nodes:         path.Nodes,
@@ -64,7 +64,7 @@ func (a *AttackPathAnalyzer) Analyze(maxDepth int) []AttackPath {
 				Length:        path.Length,
 				Risk:          risk, Level: levelOf(risk),
 				Reason: "Path from " + path.Source + " to sensitive " + path.Destination +
-					" via " + join(path.Nodes),
+					" via " + a.joinException(path) + " [" + join(path.Nodes) + "]",
 			})
 		}
 	}
@@ -91,17 +91,33 @@ func (a *AttackPathAnalyzer) principals() []string {
 	return out
 }
 
-// riskOf scores a path by length and destination type: shorter paths to a
-// domain/DC are most security-relevant.
-func riskOf(p graph.Path) int {
+// riskOf scores a path by length, destination type and the escalation edges it
+// crosses: direct privilege edges (AdminOf, HasPrivilege) and cross-boundary
+// trust edges are weighted far above mere membership containment, so paths
+// that cross a real privilege boundary are surfaced first.
+func (a *AttackPathAnalyzer) riskOf(p graph.Path) int {
 	base := 20
-	if p.Destination != "" {
-		if n := p.Destination; n != "" {
+	if n := a.Graph.Node(p.Destination); n != nil {
+		switch n.Kind {
+		case models.NodeDomain, models.NodeDC:
+			base = 70
+		case models.NodeResource:
 			base = 55
 		}
 	}
-	// Shorter path => higher risk; subtract per hop.
-	risk := base - (p.Length * 6)
+	// Escalation edges add meaningful risk; containment edges do not.
+	escalation := 0
+	for i := 1; i < len(p.Nodes); i++ {
+		switch a.hopEscalation(p.Nodes[i-1], p.Nodes[i]) {
+		case models.RelAdminOf, models.RelHasPrivilege:
+			escalation += 30
+		case models.RelTrusts:
+			escalation += 20
+		case models.RelTrustedBy:
+			escalation += 10
+		}
+	}
+	risk := base + escalation - (p.Length * 8)
 	if risk < 10 {
 		risk = 10
 	}
@@ -109,6 +125,58 @@ func riskOf(p graph.Path) int {
 		risk = 100
 	}
 	return risk
+}
+
+// hopEscalation returns the strongest escalation relationship between two
+// nodes, or "" when none exists. It scans the full edge set so it is correct
+// even when multiple typed edges share the same from/to pair (e.g. a principal
+// that is both a member and an administrator of a domain).
+func (a *AttackPathAnalyzer) hopEscalation(from, to string) models.RelationshipType {
+	best := models.RelationshipType("")
+	for _, e := range a.Graph.Edges() {
+		if e.From != from || e.To != to {
+			continue
+		}
+		switch e.Type {
+		case models.RelAdminOf:
+			return models.RelAdminOf
+		case models.RelHasPrivilege:
+			if best != models.RelAdminOf {
+				best = models.RelHasPrivilege
+			}
+		case models.RelTrusts:
+			if best == "" {
+				best = models.RelTrusts
+			}
+		case models.RelTrustedBy:
+			if best == "" {
+				best = models.RelTrustedBy
+			}
+		}
+	}
+	return best
+}
+
+// joinException names the strongest escalation mechanism along the path, or
+// "membership containment" when the path only traverses containment edges. It
+// gives each attack path a plain-language mechanism.
+func (a *AttackPathAnalyzer) joinException(p graph.Path) string {
+	best := "membership containment"
+	for i := 1; i < len(p.Nodes); i++ {
+		switch a.hopEscalation(p.Nodes[i-1], p.Nodes[i]) {
+		case models.RelAdminOf:
+			best = "administrative control"
+		case models.RelHasPrivilege:
+			if best != "administrative control" {
+				best = "privileged access"
+			}
+		case models.RelTrusts:
+			if best != "administrative control" && best != "privileged access" {
+				best = "cross-domain trust"
+			}
+		}
+	}
+	return best
 }
 
 func levelOf(risk int) string {

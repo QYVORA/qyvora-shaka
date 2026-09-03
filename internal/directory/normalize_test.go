@@ -64,3 +64,72 @@ func TestDomainOfExtractsDCComponents(t *testing.T) {
 		t.Errorf("unexpected domain %q", got)
 	}
 }
+
+func TestNormalizeTrustExternalInboundTransitive(t *testing.T) {
+	e := &transport.Entry{
+		DN: "CN=external.example.net,CN=System,DC=corp,DC=example,DC=com",
+		Attributes: map[string][]string{
+			"cn": {"external.example.net"}, "name": {"external.example.net"},
+			"trustDirection": {"2"}, "trustType": {"2"}, "trustAttributes": {"0"},
+		},
+	}
+	tr := NormalizeTrust(e)
+	if tr.SourceDomain != "corp.example.com" {
+		t.Errorf("unexpected source %q", tr.SourceDomain)
+	}
+	if tr.TargetDomain != "external.example.net" {
+		t.Errorf("unexpected target %q", tr.TargetDomain)
+	}
+	if tr.Direction != "inbound" {
+		t.Errorf("unexpected direction %q", tr.Direction)
+	}
+	if tr.Type != "external" {
+		t.Errorf("unexpected type %q", tr.Type)
+	}
+	if !tr.Transitive {
+		t.Error("trust with attributes 0 should be transitive")
+	}
+	if tr.IsSIDFiltered {
+		t.Error("trust with attributes 0 should not be SID filtered")
+	}
+}
+
+func TestNormalizeTrustQuarantinedIsSIDFiltered(t *testing.T) {
+	e := &transport.Entry{
+		DN: "CN=other.net,CN=System,DC=corp,DC=com",
+		Attributes: map[string][]string{
+			"cn":             {"other.net"},
+			"trustDirection": {"3"}, "trustType": {"4"}, "trustAttributes": {"512"}, // 0x200 QUARANTINED
+		},
+	}
+	tr := NormalizeTrust(e)
+	if tr.Direction != "bidirectional" {
+		t.Errorf("unexpected direction %q", tr.Direction)
+	}
+	if tr.Type != "forest" {
+		t.Errorf("unexpected type %q", tr.Type)
+	}
+	if !tr.IsSIDFiltered {
+		t.Error("QUARANTINED attribute should mark SID filtering as enabled")
+	}
+}
+
+func TestNormalizeTrustNonTransitive(t *testing.T) {
+	e := &transport.Entry{
+		DN: "CN=leaf.net,CN=System,DC=corp,DC=com",
+		Attributes: map[string][]string{
+			"cn":             {"leaf.net"},
+			"trustDirection": {"1"}, "trustType": {"3"}, "trustAttributes": {"1"}, // 0x1 NON_TRANSITIVE
+		},
+	}
+	tr := NormalizeTrust(e)
+	if tr.Direction != "outbound" {
+		t.Errorf("unexpected direction %q", tr.Direction)
+	}
+	if tr.Type != "parent_child" {
+		t.Errorf("unexpected type %q", tr.Type)
+	}
+	if tr.Transitive {
+		t.Error("NON_TRANSITIVE attribute should mark trust non-transitive")
+	}
+}

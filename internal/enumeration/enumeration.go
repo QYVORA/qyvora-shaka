@@ -171,11 +171,37 @@ func (o *OUEnumerator) Enumerate(ctx context.Context, base string, limit int) ([
 	return out, nil
 }
 
-// TrustEnumerator enumerates trust objects (managed by the trust subsystem,
-// but exposed here for parity).
+// TrustEnumerator enumerates trust objects.
 type TrustEnumerator struct {
 	Dir    directory.Service
 	Events *events.Stream
+}
+
+// Enumerate lists all trustedDomain objects under the base and normalizes
+// each into a Trust model, emitting a discovery event per trust.
+func (t *TrustEnumerator) Enumerate(ctx context.Context, base string, limit int) ([]*models.Trust, error) {
+	entries, err := t.Dir.Search(ctx, base, "(objectCategory=trustedDomain)",
+		[]string{"cn", "name", "distinguishedName", "trustDirection",
+			"trustType", "trustAttributes", "trustedDomain"})
+	if err != nil {
+		return nil, err
+	}
+	out := make([]*models.Trust, 0, len(entries))
+	for _, e := range entries {
+		trust := directory.NormalizeTrust(e)
+		out = append(out, trust)
+		if t.Events != nil {
+			t.Events.Info(events.TrustDiscovered, map[string]any{
+				"source": trust.SourceDomain, "target": trust.TargetDomain,
+				"type": trust.Type, "direction": trust.Direction,
+				"transitive": trust.Transitive, "sid_filtered": trust.IsSIDFiltered,
+			})
+		}
+		if limit > 0 && len(out) >= limit {
+			break
+		}
+	}
+	return out, nil
 }
 
 // Helpers --------------------------------------------------------------------

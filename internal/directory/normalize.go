@@ -121,6 +121,74 @@ func NormalizeGPO(e *transport.Entry) *models.GroupPolicy {
 	}
 }
 
+// NormalizeTrust converts a trustedDomain directory entry into a Trust model,
+// decoding the LDAP integer attributes into the semantic fields used by the
+// trust analyzer and rules. Mapping mirrors the standard Active Directory
+// trust enumeration (BloodHound/ADACL style):
+//
+//   - trustDirection: 1=outbound, 2=inbound, 3=bidirectional
+//   - trustType:      2=external(down-level), 3=parent_child (Kerberos),
+//     4=forest, anything else treated as external
+//   - trustAttributes bit flags: 0x1 = NON_TRANSITIVE, 0x200 = QUARANTINED
+//     (SID filtering enabled), 0x10 = SID_HISTORY (filtering disabled)
+func NormalizeTrust(e *transport.Entry) *models.Trust {
+	dir := trustDirection(e.Value("trustDirection"))
+	typ := trustType(e.Value("trustType"))
+	attrs := trustAttributes(e.Value("trustAttributes"))
+	return &models.Trust{
+		ID:            models.NewID("trust"),
+		SourceDomain:  domainOf(e.DN),
+		TargetDomain:  firstNonEmpty(e.Value("cn"), e.Value("name")),
+		Direction:     dir,
+		Type:          typ,
+		Transitive:    attrs&attrNonTransitive == 0,
+		IsSIDFiltered: attrs&attrQuarantined != 0,
+		State:         models.StateObserved,
+		Confidence:    models.ConfidenceHigh,
+		DiscoveredAt:  time.Now().UTC(),
+	}
+}
+
+// Trust attribute bit flags.
+const (
+	attrNonTransitive uint32 = 0x1
+	attrSIDHistory    uint32 = 0x10
+	attrQuarantined   uint32 = 0x200
+)
+
+func trustDirection(v string) string {
+	switch v {
+	case "1":
+		return "outbound"
+	case "2":
+		return "inbound"
+	case "3":
+		return "bidirectional"
+	}
+	return "unknown"
+}
+
+func trustType(v string) string {
+	switch v {
+	case "3":
+		return "parent_child"
+	case "4":
+		return "forest"
+	}
+	return "external"
+}
+
+func trustAttributes(v string) uint32 {
+	var n uint32
+	for _, c := range v {
+		if c < '0' || c > '9' {
+			return 0
+		}
+		n = n*10 + uint32(c-'0')
+	}
+	return n
+}
+
 // Helper accessors -----------------------------------------------------------
 
 func has(e *transport.Entry, attr string) bool {

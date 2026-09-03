@@ -4,6 +4,7 @@
 package builtin
 
 import (
+	"strconv"
 	"strings"
 	"time"
 
@@ -18,6 +19,7 @@ func Builtin() []*rules.Rule {
 		passwordNeverExpires(),
 		preAuthNotRequired(),
 		unconstrainedDelegation(),
+		kerberoastable(),
 		weakAuthEncryption(),
 		externalTrust(),
 		trustRelationship(),
@@ -133,6 +135,39 @@ func unconstrainedDelegation() *rules.Rule {
 					f.Objects = []string{u.SAMAccount}
 					findings = append(findings, f)
 				}
+			}
+			return findings
+		},
+	}
+}
+
+// ADM-007 flags accounts with registered service principal names (SPNs): they
+// are kerberoastable targets once any domain credential is obtained.
+func kerberoastable() *rules.Rule {
+	return &rules.Rule{
+		ID: "ADM-007", Name: "Kerberoastable Account (SPN Set)",
+		Description: "An account has one or more service principal names and is therefore a kerberoastable target for offline password cracking.",
+		Category:    "kerberos", Severity: models.SeverityMedium,
+		Confidence:  models.ConfidenceHigh,
+		ObjectTypes: []string{"user"},
+		Remediation: "Rotate the account password, prefer group Managed Service Accounts (gMSA), and monitor TGS-REQ for SPNs.",
+		Detect: func(ctx rules.Context) []*models.Finding {
+			var findings []*models.Finding
+			for _, u := range ctx.Users {
+				if u == nil || len(u.ServicePrincipalNames) == 0 {
+					continue
+				}
+				f := newFinding("ADM-007", "Kerberoastable Account (SPN Set)",
+					models.SeverityMedium, models.ConfidenceHigh)
+				f.Description = "Account " + u.SAMAccount + " has " +
+					strconv.Itoa(len(u.ServicePrincipalNames)) + " service principal name(s) and is kerberoastable."
+				f.Objects = []string{u.SAMAccount}
+				f.Attributes = map[string]string{"sam": u.SAMAccount, "spn_count": strconv.Itoa(len(u.ServicePrincipalNames))}
+				if u.AdminCount {
+					f.Severity = models.SeverityHigh
+					f.Impact = "A privileged account that is kerberoastable exposes a crackable high-value secret."
+				}
+				findings = append(findings, f)
 			}
 			return findings
 		},

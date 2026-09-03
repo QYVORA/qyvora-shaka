@@ -81,3 +81,45 @@ func TestBuiltinDeterministic(t *testing.T) {
 		}
 	}
 }
+
+func TestBuiltinKerberoastableFires(t *testing.T) {
+	e := rules.New()
+	e.AddMany(Builtin()...)
+	ctx := rules.Context{Users: []*models.User{
+		{SAMAccount: "svc-sql", ServicePrincipalNames: []string{"MSSQLSvc/sql.corp.example.com:1433"}},
+		{SAMAccount: "plain"},
+	}}
+	findings := e.Eval(ctx)
+	kerb := false
+	for _, f := range findings {
+		if f.RuleID == "ADM-007" {
+			kerb = true
+			if len(f.Objects) != 1 || f.Objects[0] != "svc-sql" {
+				t.Errorf("ADM-007 should target svc-sql, got %v", f.Objects)
+			}
+			if f.Attributes["spn_count"] != "1" {
+				t.Errorf("ADM-007 spn_count should be 1, got %q", f.Attributes["spn_count"])
+			}
+		}
+	}
+	if !kerb {
+		t.Fatal("ADM-007 should fire for an SPN-bearing account")
+	}
+}
+
+func TestBuiltinKerberoastablePrivilegedIsHigh(t *testing.T) {
+	e := rules.New()
+	e.AddMany(Builtin()...)
+	ctx := rules.Context{Users: []*models.User{
+		{SAMAccount: "da-sql", ServicePrincipalNames: []string{"MSSQLSvc/db.corp:1433"}, AdminCount: true},
+	}}
+	var sev models.Severity
+	for _, f := range e.Eval(ctx) {
+		if f.RuleID == "ADM-007" {
+			sev = f.Severity
+		}
+	}
+	if sev != models.SeverityHigh {
+		t.Fatalf("ADM-007 for privileged SPN account should be high, got %s", sev)
+	}
+}

@@ -35,6 +35,7 @@ type Context struct {
 	Domains   []*models.Domain
 	Trusts    []*models.Trust
 	OUs       []*models.OrganizationalUnit
+	GPOs      []*models.GroupPolicy
 	Evidence  map[string][]*models.Evidence
 }
 

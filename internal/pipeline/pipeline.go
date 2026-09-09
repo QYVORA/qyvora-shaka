@@ -108,7 +108,16 @@ func (s *EnumerationStage) Run(ctx context.Context, env *core.Env) error {
 		ous, err := oe.Enumerate(ctx, base, s.Limit)
 		if err == nil {
 			env.Session.OUs = ous
+			seedOUs(env)
 		}
+
+		ge := enumeration.GPOEnumerator{Dir: env.Dir, Events: env.Events}
+		gpos, err := ge.Enumerate(ctx, base, s.Limit)
+		if err == nil && len(gpos) > 0 {
+			env.Session.GPOs = gpos
+			seedGPOs(env)
+		}
+
 		if s.IncludeTrusts {
 			te := enumeration.TrustEnumerator{Dir: env.Dir, Events: env.Events}
 			trusts, err := te.Enumerate(ctx, base, s.Limit)

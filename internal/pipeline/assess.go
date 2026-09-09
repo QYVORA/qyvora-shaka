@@ -38,6 +38,7 @@ func evalRules(env *core.Env) []*models.Finding {
 		Domains:   env.Session.Domains,
 		Trusts:    env.Session.Trusts,
 		OUs:       env.Session.OUs,
+		GPOs:      env.Session.GPOs,
 		Evidence:  byHash,
 	}
 	return engine.Eval(ctx)

@@ -222,6 +222,63 @@ func labelOf(name, fallback string) string {
 	return fallback
 }
 
+// seedOUs creates a node per organizational unit and joins it to the domain.
+func seedOUs(env *core.Env) {
+	for _, ou := range env.Session.OUs {
+		if ou == nil {
+			continue
+		}
+		id := nodeID("ou", ou.ID)
+		env.Graph.UpsertNode(&models.Node{ID: id, Kind: models.NodeOU, Label: labelOf(ou.Name, ou.DistName), Domain: ou.Domain})
+		if dom := env.Session.DomainByName(ou.Domain); dom != nil {
+			env.Graph.AddEdge(&models.Edge{
+				ID: nodeID("e", ou.ID+"-joins"), From: id, To: nodeID("domain", dom.ID),
+				Type: models.RelJoins, Source: "enumeration",
+				Confidence: models.ConfidenceConfirmed,
+			})
+		}
+	}
+}
+
+// seedGPOs creates a node per Group Policy Object and adds applies_to edges
+// for every gPLink observed on an OU, so the graph carries the policy surface
+// scoped to high-value containers.
+func seedGPOs(env *core.Env) {
+	byDN := map[string]string{}
+	for _, g := range env.Session.GPOs {
+		if g == nil {
+			continue
+		}
+		id := nodeID("gpo", g.ID)
+		env.Graph.UpsertNode(&models.Node{ID: id, Kind: models.NodeGPO, Label: labelOf(g.Name, g.ID), Domain: g.Domain})
+		byDN[g.DistName] = id
+		if dom := env.Session.DomainByName(g.Domain); dom != nil {
+			env.Graph.AddEdge(&models.Edge{
+				ID: nodeID("e", g.ID+"-joins"), From: id, To: nodeID("domain", dom.ID),
+				Type: models.RelJoins, Source: "enumeration",
+				Confidence: models.ConfidenceConfirmed,
+			})
+		}
+	}
+	for _, ou := range env.Session.OUs {
+		if ou == nil {
+			continue
+		}
+		ouID := nodeID("ou", ou.ID)
+		for _, dn := range ou.LinkedGPOs {
+			gpoID := byDN[dn]
+			if gpoID == "" {
+				continue
+			}
+			env.Graph.AddEdge(&models.Edge{
+				ID: nodeID("e", ou.ID+"-applies-"+gpoID), From: gpoID, To: ouID,
+				Type: models.RelAppliesTo, Source: "enumeration",
+				Confidence: models.ConfidenceConfirmed,
+			})
+		}
+	}
+}
+
 // seedEscalation adds real privilege-escalation edges to the graph. Unlike
 // pure membership containment, these edges model the security semantics that
 // BloodHound and ACL analysis expose:

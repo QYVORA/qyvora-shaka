@@ -35,7 +35,7 @@ func (u *UserEnumerator) Enumerate(ctx context.Context, base string, limit int) 
 	entries, err := u.Dir.Search(ctx, base, "(&(objectCategory=person)(objectClass=user))",
 		[]string{"cn", "name", "sAMAccountName", "userPrincipalName", "distinguishedName",
 			"description", "userAccountControl", "adminCount", "servicePrincipalName",
-			"lastLogonTimestamp", "msDS-AllowedToDelegateTo"})
+			"lastLogonTimestamp", "msDS-AllowedToDelegateTo", "sidHistory"})
 	if err != nil {
 		return nil, err
 	}
@@ -125,7 +125,9 @@ type ComputerEnumerator struct {
 func (c *ComputerEnumerator) Enumerate(ctx context.Context, base string, limit int) ([]*models.Computer, error) {
 	entries, err := c.Dir.Search(ctx, base, "(objectCategory=computer)",
 		[]string{"cn", "name", "distinguishedName", "operatingSystem", "operatingSystemVersion",
-			"dNSHostName", "ipv4Address", "userAccountControl", "lastLogonTimestamp"})
+			"dNSHostName", "ipv4Address", "userAccountControl", "lastLogonTimestamp",
+			"servicePrincipalName", "msDS-AllowedToActOnBehalfOfOtherIdentity",
+			"ms-Mcs-AdmPwdExpirationTime"})
 	if err != nil {
 		return nil, err
 	}
@@ -153,7 +155,7 @@ type OUEnumerator struct {
 
 func (o *OUEnumerator) Enumerate(ctx context.Context, base string, limit int) ([]*models.OrganizationalUnit, error) {
 	entries, err := o.Dir.Search(ctx, base, "(objectCategory=organizationalUnit)",
-		[]string{"cn", "name", "ou", "distinguishedName"})
+		[]string{"cn", "name", "ou", "distinguishedName", "gPLink"})
 	if err != nil {
 		return nil, err
 	}
@@ -166,6 +168,37 @@ func (o *OUEnumerator) Enumerate(ctx context.Context, base string, limit int) ([
 		out = append(out, ou)
 		if o.Events != nil {
 			o.Events.Info(events.OUDiscovered, map[string]any{"dn": ou.DistName})
+		}
+	}
+	return out, nil
+}
+
+// GPOEnumerator enumerates Group Policy Objects.
+type GPOEnumerator struct {
+	Dir    directory.Service
+	Events *events.Stream
+}
+
+// Enumerate lists all GPOs under the base and normalizes each via
+// directory.NormalizeGPO, emitting a discovery event per object. The links
+// themselves (gPLink) are captured on OUs by the OUEnumerator.
+func (g *GPOEnumerator) Enumerate(ctx context.Context, base string, limit int) ([]*models.GroupPolicy, error) {
+	entries, err := g.Dir.Search(ctx, base, "(objectCategory=gpo)",
+		[]string{"cn", "name", "distinguishedName", "displayName", "gPCFileSysPath"})
+	if err != nil {
+		return nil, err
+	}
+	var out []*models.GroupPolicy
+	for _, e := range entries {
+		if limit > 0 && len(out) >= limit {
+			break
+		}
+		gpo := directory.NormalizeGPO(e)
+		out = append(out, gpo)
+		if g.Events != nil {
+			g.Events.Info(events.GPODiscovered, map[string]any{
+				"name": gpo.Name, "dn": gpo.DistName,
+			})
 		}
 	}
 	return out, nil

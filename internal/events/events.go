@@ -40,6 +40,7 @@ const (
 	UserDiscovered         = "user.discovered"
 	GroupDiscovered        = "group.discovered"
 	OUDiscovered           = "ou.discovered"
+	GPODiscovered          = "gpo.discovered"
 	TrustDiscovered        = "trust.discovered"
 	ServiceDiscovered      = "service.discovered"
 	RelationshipDiscovered = "relationship.discovered"

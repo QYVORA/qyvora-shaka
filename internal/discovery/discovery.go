@@ -28,7 +28,7 @@ type Engine struct {
 }
 
 // DiscoverDomains discovers the domain model and default base DN.
-func (e *Engine) DiscoverDomains(_ context.Context) ([]*models.Domain, string, error) {
+func (e *Engine) DiscoverDomains(ctx context.Context) ([]*models.Domain, string, error) {
 	base, err := e.Dir.RootBaseDN()
 	if err != nil {
 		return nil, "", err
@@ -41,6 +41,14 @@ func (e *Engine) DiscoverDomains(_ context.Context) ([]*models.Domain, string, e
 		BaseDN:       base,
 		State:        models.StateObserved,
 		DiscoveredAt: now(),
+	}
+	// The domain object itself carries the password policy (minPwdLen,
+	// pwdProperties, maxPwdAge). Read it so policy-based rules can fire on
+	// observed configuration only; if the read fails or the attributes are
+	// absent, the policy stays unobserved and no rule fires.
+	if entries, err := e.Dir.Search(ctx, base, "(objectClass=domain)",
+		[]string{"minPwdLen", "pwdProperties", "maxPwdAge"}); err == nil && len(entries) > 0 {
+		directory.ApplyDomainPasswordPolicy(d, entries[0])
 	}
 	domains := []*models.Domain{d}
 	e.emitDomain(d)

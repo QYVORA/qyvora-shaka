@@ -58,10 +58,11 @@ func TestDemoFixtures(t *testing.T) {
 		t.Fatalf("unexpected base %q", base)
 	}
 	counts := map[string]int{
-		"(&(objectCategory=person)(objectClass=user))": 4,
-		"(&(objectCategory=group))":                    3,
-		"(objectCategory=computer)":                    1,
+		"(&(objectCategory=person)(objectClass=user))": 8,
+		"(&(objectCategory=group))":                    4,
+		"(objectCategory=computer)":                    4,
 		"(objectCategory=organizationalUnit)":          2,
+		"(objectCategory=gpo)":                         2,
 	}
 	for filter, want := range counts {
 		entries, err := sim.Search(context.Background(), base, filter)

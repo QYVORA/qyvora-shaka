@@ -14,8 +14,8 @@ func TestUserEnumeratorDemo(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if len(users) != 4 {
-		t.Fatalf("expected 4 users, got %d", len(users))
+	if len(users) != 8 {
+		t.Fatalf("expected 8 users, got %d", len(users))
 	}
 }
 
@@ -26,8 +26,8 @@ func TestGroupEnumeratorDemo(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if len(groups) != 3 {
-		t.Fatalf("expected 3 groups, got %d", len(groups))
+	if len(groups) != 4 {
+		t.Fatalf("expected 4 groups, got %d", len(groups))
 	}
 }
 
@@ -38,8 +38,8 @@ func TestComputerEnumeratorDemo(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if len(comps) != 1 {
-		t.Fatalf("expected 1 computer, got %d", len(comps))
+	if len(comps) != 4 {
+		t.Fatalf("expected 4 computers, got %d", len(comps))
 	}
 }
 
@@ -83,6 +83,18 @@ func TestTrustEnumeratorLimit(t *testing.T) {
 	}
 	if len(trusts) > 1 {
 		t.Fatalf("demo should have at most 1 trust, got %d", len(trusts))
+	}
+}
+
+func TestGPOEnumeratorDemo(t *testing.T) {
+	svc := demoService(t)
+	ge := GPOEnumerator{Dir: svc}
+	gpos, err := ge.Enumerate(context.Background(), baseDN(t, svc), 0)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(gpos) != 2 {
+		t.Fatalf("expected 2 GPOs, got %d", len(gpos))
 	}
 }
 

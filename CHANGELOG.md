@@ -7,7 +7,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+### Changed
+
+- **ANSI hygiene** — terminal colors are disabled when stdout is piped or
+  redirected or `NO_COLOR` is set; the console `clear` command only emits
+  control sequences to an interactive terminal.
+- Fatal config/event errors no longer call `os.Exit(1)` directly; they surface
+  through `Execute`'s exit-code contract.
+
 ### Added
+
 
 - Foundation release of SHAKA, the authorized Active Directory / Windows
   security assessment framework.

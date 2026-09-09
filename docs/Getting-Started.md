@@ -54,18 +54,19 @@ shaka assess --sim
 ```
 
 `directory.Demo()` simulates `corp.example.com`: one domain, one domain
-controller (DC01), four users (Administrator, svc-backup, jdoe and kpreauth —
-whose userAccountControl of 4194816 means Kerberos pre-authentication is not
-required), three groups (Domain Admins, Backup Operators, Employees), one
-computer, two organizational units, and an external trust.
+controller (DC01), eight users (including svc-web with constrained delegation,
+bob with credential material in a description, legacy with SID history, and
+monitor, who reaches Domain Admins through IT Support), four groups (Domain
+Admins, Backup Operators, Employees, IT Support), three computers (FILESRV,
+WEBAPP, WEB01) plus the DC, two organizational units, two group policy
+objects, and an external trust.
 
 The run is deterministic and yields:
 
 - session persisted under `./sessions/`
-- graph: 10 nodes / 13 edges
-- risk: `medium` (53/100)
-- findings: 2x `ADM-001` (Privileged Group Membership Discovered) and
-  `ADM-003` (Kerberos Pre-Authentication Not Required)
+- graph: 24 nodes / 36 edges
+- risk: `medium` (43/100)
+- findings: 18 across 15 rules (see [Rules](Rules.md))
 
 Because `--sim` is offline (no network I/O), it is **auto-authorized** — no
 confirmation prompt is shown.

@@ -205,7 +205,7 @@ the session with `AddFinding` (fingerprint-deduplicated); evidence with
 than emitting a fake-precision score. Each finding's risk is explainable
 (`risk.Risk` carries the rationale); `risk.Assessor.Assess` combines findings
 into a 0..100 target score with a `none|low|medium|high|critical` level. The
-offline demo (`shaka assess --sim`) deterministically yields medium 53/100.
+offline demo (`shaka assess --sim`) deterministically yields medium 43/100.
 
 ## Reporting
 

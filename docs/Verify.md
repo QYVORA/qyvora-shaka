@@ -64,8 +64,8 @@ through several mechanisms working together:
 ## Relationship to the demo
 
 The offline demo is small and fully connected; follow-up has nothing extra to
-produce, so `shaka assess --sim` remains deterministic (10 nodes / 13 edges,
-medium risk 53/100). On a live directory, follow-up is what turns a flat
+produce, so `shaka assess --sim` remains deterministic (24 nodes / 36 edges,
+medium risk 43/100). On a live directory, follow-up is what turns a flat
 object listing into the verified, deepened picture the analysis stages rely
 on.
 

@@ -79,10 +79,11 @@ because a compromise can cross the domain boundary.
 
 ## The demo result
 
-`shaka assess --sim` produces a 10-node / 13-edge graph deterministically:
-a domain node, a domain controller, four users, three groups, and one
-computer, connected by joins and membership edges derived from the demo
-directory's attributes.
+`shaka assess --sim` produces a 24-node / 36-edge graph deterministically:
+a domain node, a domain controller, eight users, four groups, three joined
+computers, two organizational units, and two group policy objects, connected
+by joins, membership, trust, gPLink (`applies_to`) and escalation edges
+derived from the demo directory's attributes.
 
 ## Viewing the graph
 

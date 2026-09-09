@@ -174,9 +174,10 @@ shaka assess --endpoint dc01:389 --user svc-audit -y --json
 ```
 
 `shaka assess --sim` runs the full pipeline against the offline demo and
-yields 10 graph nodes / 13 edges, a `medium` risk score of 53/100, and the
-expected findings (2x `ADM-001` privileged group membership, `ADM-003`
-Kerberos pre-authentication not required) — a deterministic walk-through of
+yields 24 graph nodes / 36 edges, a `medium` risk score of 43/100, and 18
+expected findings across 15 rules (privileged and nested membership,
+delegation postures on users and computers, credential hygiene, SID history,
+LAPS, GPO links and password policy) — a deterministic walk-through of
 the whole pipeline.
 
 Inside the console you get the banner, a prompt, and every one-shot command:

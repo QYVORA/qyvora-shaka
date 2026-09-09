@@ -44,14 +44,19 @@ The offline demo replaces the live directory with `directory.Demo()`, an
 in-memory simulator modeling `corp.example.com`:
 
 - 1 domain, 1 domain controller (DC01, userAccountControl 532480)
-- 4 users (Administrator, svc-backup, jdoe, kpreauth — UAC 4194816, meaning
-  Kerberos pre-authentication is not required)
-- 3 groups (Domain Admins, Backup Operators, Employees)
-- 1 computer, 2 organizational units, 1 external trust
+- 8 users (Administrator, svc-backup, jdoe, kpreauth — UAC 4194816, meaning
+  Kerberos pre-authentication is not required — plus svc-web, bob, legacy and
+  monitor, exercising constrained delegation, credential hygiene, SID history
+  and nested membership)
+- 4 groups (Domain Admins, Backup Operators, Employees, IT Support)
+- 3 computers (FILESRV, WEBAPP, WEB01) spanning unconstrained delegation, RBCD
+  and LAPS-managed/unmanaged postures, plus 1 domain controller
+- 2 organizational units, 2 group policy objects (gPLink on Domain
+  Controllers and IT), 1 external trust
 
 `--sim` targets are **auto-authorized**: the simulator performs no network
 I/O, so there is nothing to authorize. `shaka assess --sim` produces the
-deterministic demo result (10 nodes / 13 edges, medium risk 53/100).
+deterministic demo result (24 nodes / 36 edges, medium risk 43/100).
 
 ## Authorization gate
 

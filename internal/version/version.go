@@ -13,6 +13,15 @@ import "runtime"
 // Framework is the canonical framework name carried in events and reports.
 const Framework = "shaka"
 
+// Public QYVORA organisation details. Kept in one place so every command that
+// surfaces company data (version, report footers, banners) stays correct.
+const (
+	CompanyName  = "QYVORA OffSec"
+	CompanyURL   = "https://qyvora.netlify.app"
+	CompanyEmail = "qyvorasec@gmail.com"
+	CompanyCity  = "Tamale, Ghana"
+)
+
 var (
 	Version   = "dev"
 	Commit    = "none"
@@ -30,6 +39,9 @@ type Info struct {
 	GoVersion string `json:"go_version"`
 	Arch      string `json:"arch"`
 	OS        string `json:"os"`
+	Website   string `json:"website"`
+	Support   string `json:"support"`
+	BuiltIn   string `json:"built_in"`
 }
 
 // GetInfo returns the full build identity.
@@ -43,6 +55,9 @@ func GetInfo() Info {
 		GoVersion: runtime.Version(),
 		Arch:      runtime.GOARCH,
 		OS:        runtime.GOOS,
+		Website:   CompanyURL,
+		Support:   CompanyEmail,
+		BuiltIn:   CompanyCity,
 	}
 }
 

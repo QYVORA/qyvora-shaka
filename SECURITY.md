@@ -13,8 +13,8 @@ Please report security vulnerabilities **privately** — do not open a public
 issue for them.
 
 - **Contact:** create a private advisory in this repository (GitHub Security
-  → Report a vulnerability), or contact the maintainers per the address in
-  `GOVERNANCE.md`.
+  → Report a vulnerability), or email the QYVORA OffSec team at
+  **qyvorasec@gmail.com**.
 - **What to include:**
   - affected version / commit,
   - description of the issue and its impact,
@@ -32,6 +32,12 @@ in the next release and are backported only to the latest release branch.
 - We will provide a status update within 10 business days.
 - We will coordinate public disclosure after a fix is released, and credit
   reporters who opt in.
+
+## Contact
+
+- **Website:** https://qyvora.netlify.app
+- **Security contact:** qyvorasec@gmail.com
+- **Organisation:** QYVORA OffSec — Tamale, Ghana
 
 ## Scope
 

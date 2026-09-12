@@ -31,6 +31,9 @@ func printVersion(i version.Info) {
 		fmt.Fprintf(app.printer.Writer(), "  built:      %s\n", emptyDash(i.Date))
 		fmt.Fprintf(app.printer.Writer(), "  by:         %s\n", emptyDash(i.BuildUser))
 		fmt.Fprintf(app.printer.Writer(), "  go:         %s %s/%s\n", i.GoVersion, i.OS, i.Arch)
+		fmt.Fprintf(app.printer.Writer(), "  website:    %s\n", i.Website)
+		fmt.Fprintf(app.printer.Writer(), "  support:    %s\n", i.Support)
+		fmt.Fprintf(app.printer.Writer(), "  built in:   %s\n", i.BuiltIn)
 	}
 }
 

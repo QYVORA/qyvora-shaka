@@ -103,7 +103,8 @@ Kerberos/SMB protocol analysis, more rules, ecosystem integration).
 - **Authorization gate** — explicit per-target confirmation, non-interactive
   mode, and refusal in any ambiguous context.
 - **Interactive console** — running bare `shaka` drops into a
-  Metasploit-style REPL where every one-shot command is available.
+  Metasploit-style REPL on a real terminal (piped/redirected stdin uses a
+  plain line reader); every one-shot command is available in either mode.
 - **Machine-readable capabilities** — `shaka capabilities` / `shaka tools`
   exposes an AI-ready tool catalog with risk and authorization metadata.
 
@@ -160,7 +161,7 @@ untouched. No Go toolchain or Git is required.
 ## Quick start
 
 ```sh
-# Interactive console (Metasploit-style REPL)
+# Interactive console (Metasploit-style REPL, real terminal only)
 shaka
 
 # Offline demo assessment (no live directory, auto-authorized)
@@ -248,6 +249,11 @@ internal/banner/       brand banner (ASCII art)
 internal/version/      build identity
 pkg/models/            shared data model (finding.go, session.go, graph.go, …)
 ```
+
+## Contact
+
+QYVORA OffSec — Tamale, Ghana
+Website: https://qyvora.netlify.app · Security/Support: qyvorasec@gmail.com
 
 ## License
 

@@ -53,6 +53,8 @@ shaka help                        help
 ## Interactive console
 
 Running `shaka` with no subcommand drops into a Metasploit-style console.
+On a real terminal this is a readline console; with piped/redirected stdin it
+runs the same commands as a plain line reader (no banner, no colors).
 Every one-shot command above works as a console command, so you can sequence
 a workflow without repeating the `shaka` prefix:
 

@@ -87,6 +87,7 @@ func (r *Runner) Run(ctx context.Context) (*Result, error) {
 	var stream *events.Stream
 	if r.Options.EventsWriter != nil {
 		stream = events.NewStream(r.Options.EventsWriter)
+		ses.ID = stream.ExecutionID()
 	}
 
 	env := &core.Env{

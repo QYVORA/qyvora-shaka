@@ -4,8 +4,9 @@
 //
 //	go build -ldflags "-X github.com/QYVORA/qyvora-shaka/internal/version.Version=<tag> ..."
 //
-// Unstamped dev builds report "dev". Release artifacts must never report a
-// dev build (QYVORA output spec, section 4).
+// The default is the current semantic version; unstamped dev builds keep it
+// and report Commit/Date/BuildUser as "none"/"unknown" (QYVORA output spec,
+// section 4).
 package version
 
 import "runtime"
@@ -23,7 +24,7 @@ const (
 )
 
 var (
-	Version   = "dev"
+	Version   = "0.1.0"
 	Commit    = "none"
 	Date      = "unknown"
 	BuildUser = "unknown"

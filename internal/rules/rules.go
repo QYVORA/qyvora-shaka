@@ -8,6 +8,7 @@ package rules
 
 import (
 	"sort"
+	"strings"
 
 	"github.com/QYVORA/qyvora-shaka/pkg/models"
 )
@@ -62,7 +63,9 @@ func (e *Engine) Rules() []*Rule {
 
 // Eval runs every rule against the context and returns findings sorted by
 // severity (desc), then rule ID, then fingerprint. Rules are applied in
-// sorted ID order so results are stable across runs.
+// sorted ID order so results are stable across runs. Every finding is
+// linked to the context evidence that supports its affected objects, so
+// finding-level evidence is never empty when a backing observation exists.
 func (e *Engine) Eval(ctx Context) []*models.Finding {
 	var all []*models.Finding
 	for _, r := range e.Rules() {
@@ -75,6 +78,7 @@ func (e *Engine) Eval(ctx Context) []*models.Finding {
 				continue
 			}
 			f.RuleID = r.ID
+			attachEvidence(ctx, f)
 			all = append(all, f)
 		}
 	}
@@ -89,4 +93,61 @@ func (e *Engine) Eval(ctx Context) []*models.Finding {
 		return all[i].Fingerprint() < all[j].Fingerprint()
 	})
 	return all
+}
+
+// attachEvidence links the context evidence that supports a finding to the
+// finding. A record supports the finding when its Target equals (or its
+// Source/Data contain) an affected object of the finding. Selection is
+// deterministic: matches are deduplicated by ID, sorted by Kind, Source,
+// Target, and ID, and only set when at least one record matches.
+func attachEvidence(ctx Context, f *models.Finding) {
+	if f == nil || len(ctx.Evidence) == 0 {
+		return
+	}
+	var matched []*models.Evidence
+	seen := map[string]bool{}
+	for _, obj := range f.Objects {
+		if obj == "" {
+			continue
+		}
+		objLower := strings.ToLower(obj)
+		for _, group := range ctx.Evidence {
+			for _, ev := range group {
+				if ev == nil || seen[ev.ID] {
+					continue
+				}
+				tgt := strings.ToLower(ev.Target)
+				sameTarget := tgt == objLower || (tgt != "" && (strings.HasSuffix(tgt, "/"+objLower) || strings.HasSuffix(tgt, "\\"+objLower)))
+				// A record with no declared target only supports the finding
+				// when its data references the object as text. Records with a
+				// declared target must match by target so directory paths that
+				// merely contain an object name never over-associate.
+				mentions := tgt == "" && strings.Contains(strings.ToLower(ev.Data), objLower)
+				if sameTarget || mentions {
+					seen[ev.ID] = true
+					matched = append(matched, ev)
+				}
+			}
+		}
+	}
+	if len(matched) == 0 {
+		return
+	}
+	sort.Slice(matched, func(i, j int) bool {
+		a, b := matched[i], matched[j]
+		if a.Kind != b.Kind {
+			return a.Kind < b.Kind
+		}
+		if a.Source != b.Source {
+			return a.Source < b.Source
+		}
+		if a.Target != b.Target {
+			return a.Target < b.Target
+		}
+		return a.ID < b.ID
+	})
+	f.Evidence = make([]models.Evidence, 0, len(matched))
+	for _, ev := range matched {
+		f.Evidence = append(f.Evidence, *ev)
+	}
 }

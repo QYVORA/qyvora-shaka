@@ -1,11 +1,43 @@
 package pipeline
 
 import (
+	"fmt"
 	"strings"
 
 	"github.com/QYVORA/qyvora-shaka/internal/core"
 	"github.com/QYVORA/qyvora-shaka/pkg/models"
 )
+
+// recordObjectEvidence records a deterministic evidence item for an
+// enumerated object so findings can cite the observation that supports them.
+// Source is the LDAP DIT location; Target is the identifier findings use for
+// the object (SAMAccount/netBIOS name, DN, or domain name).
+func recordObjectEvidence(env *core.Env, kind, source, target, data string) {
+	if env.Evidence == nil || env.Session == nil {
+		return
+	}
+	if target == "" && data == "" {
+		return
+	}
+	ev := env.Evidence.Add(&models.Evidence{
+		Kind:   kind,
+		Source: source,
+		Target: target,
+		Data:   data,
+		State:  models.StateObserved,
+	})
+	if ev != nil {
+		env.Session.AddEvidence(ev)
+	}
+}
+
+// ldapSource renders the collection source for a directory object.
+func ldapSource(domain, dn string) string {
+	if dn == "" {
+		return "LDAP://" + domain
+	}
+	return "LDAP://" + domain + "/" + dn
+}
 
 // seedGraph creates domain and domain-controller nodes and edges.
 func seedGraph(env *core.Env) {
@@ -15,6 +47,8 @@ func seedGraph(env *core.Env) {
 		}
 		id := nodeID("domain", d.ID)
 		env.Graph.UpsertNode(&models.Node{ID: id, Kind: models.NodeDomain, Label: d.Name, Domain: d.Name})
+		recordObjectEvidence(env, "configuration", ldapSource(d.Name, d.DistName), d.Name,
+			fmt.Sprintf("name=%s netbios=%s base_dn=%s sid=%s", d.Name, d.NetBIOS, d.BaseDN, d.SID))
 	}
 	for _, dc := range env.Session.DCS {
 		if dc == nil {
@@ -48,6 +82,9 @@ func seedUsers(env *core.Env) {
 				Confidence: models.ConfidenceConfirmed,
 			})
 		}
+		recordObjectEvidence(env, "attribute", ldapSource(u.Domain, u.DistName), u.SAMAccount,
+			fmt.Sprintf("sam_account_name=%s name=%s upn=%s domain=%s admin_count=%t",
+				u.SAMAccount, u.Name, u.UPN, u.Domain, u.AdminCount))
 	}
 }
 
@@ -72,6 +109,9 @@ func seedGroups(env *core.Env) {
 				Confidence: models.ConfidenceConfirmed,
 			})
 		}
+		recordObjectEvidence(env, "attribute", ldapSource(g.Domain, g.DistName), g.SAMAccount,
+			fmt.Sprintf("sam_account_name=%s name=%s domain=%s members=%d",
+				g.SAMAccount, g.Name, g.Domain, len(g.Members)))
 	}
 	// Second pass: resolve member DNs to existing user/group nodes.
 	resolve := func(dn string) string {
@@ -130,6 +170,9 @@ func seedComputers(env *core.Env) {
 				Confidence: models.ConfidenceConfirmed,
 			})
 		}
+		recordObjectEvidence(env, "attribute", ldapSource(c.Domain, c.DistName), c.Name,
+			fmt.Sprintf("name=%s dns_name=%s os=%s domain=%s laps_managed=%t unconstrained_delegation=%t",
+				c.Name, c.DNSName, c.OperatingSystem, c.Domain, c.LAPSManaged, c.TrustedForDelegation))
 	}
 }
 
@@ -237,6 +280,8 @@ func seedOUs(env *core.Env) {
 				Confidence: models.ConfidenceConfirmed,
 			})
 		}
+		recordObjectEvidence(env, "attribute", ldapSource(ou.Domain, ou.DistName), ou.DistName,
+			fmt.Sprintf("dn=%s name=%s domain=%s", ou.DistName, ou.Name, ou.Domain))
 	}
 }
 
@@ -259,6 +304,8 @@ func seedGPOs(env *core.Env) {
 				Confidence: models.ConfidenceConfirmed,
 			})
 		}
+		recordObjectEvidence(env, "configuration", ldapSource(g.Domain, g.DistName), g.ID,
+			fmt.Sprintf("dn=%s name=%s domain=%s", g.DistName, g.Name, g.Domain))
 	}
 	for _, ou := range env.Session.OUs {
 		if ou == nil {

@@ -1,30 +1,74 @@
+# GENERATED from qyvora-dist/goreleaser.template.yaml — do not edit by hand.
+# Change the template + qyvora-dist/tools.def, then run qyvora-dist/generate.sh.
+#
+# This config is kept in step with .github/workflows/release.yml, which is the
+# pipeline that actually publishes. Both are rendered from the same
+# qyvora-dist/tools.def metadata, so the target matrix, the Android policy and
+# the artifact naming cannot drift apart between them.
+#
+# If goreleaser is ever promoted to the publishing pipeline, it is already
+# configured to produce exactly the same asset names that install.sh and every
+# tool's self-updater expect:
+#
+#   {tool}-{os}-{arch}[.exe]      os = linux | macos | windows | android
+#   checksums.txt                 one sha256 manifest for the whole release
+#
+# Note the `replace .Os "darwin" "macos"` in the archive name: Go reports
+# GOOS=darwin but the release, the installer and the self-updater all use
+# "macos". A plain {{ .Os }} here is what produced assets no installer could
+# resolve.
+#
+# Android: only present when the tool can actually be built for bionic. A
+# GOOS=linux/arm64 binary is NOT a substitute — Android's linker64 only loads
+# position-independent executables and rejects an ET_EXEC binary with
+# "unexpected e_type: 2", which is exactly how the Termux install broke.
+
 version: 2
+
+project_name: shaka
 
 before:
   hooks:
     - go mod tidy
 
 builds:
-  - main: ./cmd/shaka
+  - id: shaka
+    main: ./cmd/shaka
     goos:
       - linux
       - darwin
       - windows
+      - android
     goarch:
       - amd64
       - arm64
-    ldflags:
-      - -s -w -X github.com/QYVORA/qyvora-shaka/internal/version.Version={{ .Version }}
-    env:
-      - CGO_ENABLED=0
     flags:
       - -trimpath
+    ldflags:
+      - -s -w
+      - -X QYVORA/qyvora-shaka/internal/version.Version={{ .Version }}
+      - -X QYVORA/qyvora-shaka/internal/version.Commit={{ .FullCommit }}
+      - -X QYVORA/qyvora-shaka/internal/version.Date={{ .Date }}
+      - -X QYVORA/qyvora-shaka/internal/version.BuildUser=goreleaser
+    env:
+      - CGO_ENABLED=0
 
 archives:
-  - formats: [binary]
-    # Anansi-style artifact names: macos (not darwin), matching the CI
-    # release workflow so install.sh and the SelfUpdate resolver agree.
-    name_template: "{{ .ProjectName }}-{{ if eq .Os \"darwin\" }}macos{{ else }}{{ .Os }}{{ end }}-{{ .Arch }}"
+  - id: shaka
+    ids:
+      - shaka
+    # A bare executable, not a tarball. install.sh writes the downloaded bytes
+    # straight to the install path, and every self-updater does the same, so an
+    # archive here would install a compressed file as the executable.
+    #
+    # The `| replace` pipe form is required, not stylistic. Sprig's signature is
+    # replace(old, new, src), so `replace .Os "darwin" "macos"` would call
+    # replace(".Os", "darwin", "macos") and return the constant "macos" for
+    # every target. Piping .Os as the final argument is what makes it the src:
+    #   {{ .Os | replace "darwin" "macos" }}
+    formats: [binary]
+    name_template: >-
+      {{ .ProjectName }}-{{ .Os | replace "darwin" "macos" }}-{{ .Arch }}{{ if eq .Os "windows" }}.exe{{ end }}
 
 checksum:
   name_template: "checksums.txt"
@@ -33,7 +77,7 @@ checksum:
 release:
   github:
     owner: QYVORA
-    name: qyvora-shaka
+    name: QYVORA/qyvora-shaka
   prerelease: auto
 
 changelog:

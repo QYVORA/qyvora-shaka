@@ -8,6 +8,7 @@ import (
 	errs "github.com/QYVORA/qyvora-shaka/internal/errors"
 	"github.com/spf13/cobra"
 
+	"github.com/QYVORA/qyvora-shaka/internal/capabilities"
 	"github.com/QYVORA/qyvora-shaka/internal/version"
 	"github.com/QYVORA/qyvora-tui"
 )
@@ -51,6 +52,14 @@ func runTUI(root *cobra.Command, ctx context.Context) error {
 		Meta:     tuiCommands(root),
 	}
 
+	// The capability registry is the tool's own catalog, read through the same
+	// normaliser the machine contract uses, so the F1 view and the `capabilities
+	// -o json` output cannot disagree.
+	caps, err := tui.CapabilitiesFrom("shaka", capabilities.Catalog())
+	if err != nil {
+		return errs.NewExitError(1, "preparing the capability registry: "+err.Error())
+	}
+
 	code, err := tui.Run(tui.Config{
 		Title:   "QYVORA / SHAKA",
 		Version: version.String(),
@@ -60,7 +69,8 @@ func runTUI(root *cobra.Command, ctx context.Context) error {
 		// is redrawn in place by the tool and would flicker underneath the
 		// TUI's own frames. The transcript carries the same information as an
 		// event stream, which the interface can lay out properly.
-		Err: nil,
+		Err:          nil,
+		Capabilities: caps,
 	})
 	if err != nil {
 		if tui.IsNotInteractive(err) {

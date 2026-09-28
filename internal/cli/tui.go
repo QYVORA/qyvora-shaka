@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"os"
 
+	errs "github.com/QYVORA/qyvora-shaka/internal/errors"
 	"github.com/spf13/cobra"
 
 	"github.com/QYVORA/qyvora-shaka/internal/version"
@@ -30,6 +31,18 @@ func runTUI(root *cobra.Command, ctx context.Context) error {
 	// produce.
 	if !tui.IsInteractive(os.Stdout) {
 		return root.Help()
+	}
+
+	// A machine event destination and the interface are contradictory: one
+	// screen cannot hand the same bytes to a renderer and to a file. The
+	// destination used to be ignored in silence, so a bare
+	// `--events out.jsonl` opened the session and wrote no file.
+	//
+	// The flag has to have been *asked for*, not merely be set. This tool's
+	// --events may default to a real destination so the stream is always on, and
+	// testing the value alone would refuse every ordinary interactive run.
+	if root.Flags().Changed("events") && !eventsDisabled(app.eventsF) {
+		return errs.NewExitError(2, "cannot open the interactive session with a machine event destination (--events); the session transcript is already its event stream. Run a command for machine output, or drop --events to use the session.")
 	}
 
 	runner := &tui.InProcessRunner{

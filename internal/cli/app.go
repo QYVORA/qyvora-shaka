@@ -5,7 +5,9 @@ import (
 	"fmt"
 	"io"
 	"os"
+	"path/filepath"
 	"strings"
+	"sync"
 
 	"github.com/spf13/viper"
 
@@ -84,14 +86,15 @@ func (a *appState) resolveEvents(_ context.Context) error {
 	case "stderr":
 		w = os.Stderr
 	default:
-		// Truncated, not appended, so one file holds exactly one run's
-		// events. Appending left no run boundary in the file, which matters
-		// to anything tailing it.
-		f, err := os.OpenFile(a.eventsF, os.O_CREATE|os.O_WRONLY|os.O_TRUNC, 0o600)
-		if err != nil {
-			return fmt.Errorf("opening events file: %w", err)
+		// The destination is opened on the first event, not here. Creating it
+		// eagerly meant a run that never emitted -- most visibly the
+		// interactive session, which refuses a machine destination outright --
+		// still left a truncated file behind, destroying whatever the path held
+		// and then writing nothing to it.
+		if err := checkEventsDir(a.eventsF); err != nil {
+			return err
 		}
-		w = f
+		w = &lazyFile{path: a.eventsF}
 	}
 	a.eventStream = events.NewStream(w)
 	a.eventSink = w
@@ -110,4 +113,62 @@ func eventsDisabled(spec string) bool {
 		return true
 	}
 	return false
+}
+
+// lazyFile opens its path on the first write, so a run that never emits an
+// event never creates or truncates the destination.
+//
+// Events can be emitted from several goroutines at once, so the open and the
+// write are serialised together: without that, two first events could both see
+// a nil file and both open it, and the second would truncate the first's
+// output.
+type lazyFile struct {
+	mu   sync.Mutex
+	path string
+	f    *os.File
+}
+
+func (l *lazyFile) Write(p []byte) (int, error) {
+	l.mu.Lock()
+	defer l.mu.Unlock()
+	if l.f == nil {
+		// Truncated, not appended, so one file holds exactly one run's
+		// events. Appending left no run boundary in the file, which matters
+		// to anything tailing it.
+		f, err := os.OpenFile(l.path, os.O_CREATE|os.O_WRONLY|os.O_TRUNC, 0o600)
+		if err != nil {
+			return 0, fmt.Errorf("opening events file: %w", err)
+		}
+		l.f = f
+	}
+	return l.f.Write(p)
+}
+
+// Close is a no-op when nothing was ever written, so a run that created no
+// file also has no descriptor to close.
+func (l *lazyFile) Close() error {
+	l.mu.Lock()
+	defer l.mu.Unlock()
+	if l.f == nil {
+		return nil
+	}
+	return l.f.Close()
+}
+
+// checkEventsDir reports an unusable destination early, before the run does any
+// work. It only proves the directory exists: the file itself is created on the
+// first event, so a path that is merely unwritable still fails at that point.
+func checkEventsDir(path string) error {
+	dir := filepath.Dir(path)
+	if dir == "" {
+		dir = "."
+	}
+	fi, err := os.Stat(dir)
+	if err != nil {
+		return fmt.Errorf("events file: %w", err)
+	}
+	if !fi.IsDir() {
+		return fmt.Errorf("events file: %s is not a directory", dir)
+	}
+	return nil
 }

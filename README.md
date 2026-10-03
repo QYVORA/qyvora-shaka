@@ -253,7 +253,7 @@ pkg/models/            shared data model (finding.go, session.go, graph.go, …)
 ## Contact
 
 QYVORA OffSec — Tamale, Ghana
-Website: https://qyvora.netlify.app · Security/Support: qyvorasec@gmail.com
+Website: https://qyvora.org · Security/Support: qyvorasec@gmail.com
 
 ## License
 

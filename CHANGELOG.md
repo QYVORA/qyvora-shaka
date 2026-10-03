@@ -13,7 +13,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
   official QYVORA contact details (website, support, location), surfaced by
   `shaka version` in terminal and machine formats.
 - **Contact details** — the `version` command, README, and `SECURITY.md`
-  surface official QYVORA contact: https://qyvora.netlify.app ·
+  surface official QYVORA contact: https://qyvora.org ·
   qyvorasec@gmail.com · Tamale, Ghana.
 - **ANSI hygiene** — terminal colors are disabled when stdout is piped or
   redirected or `NO_COLOR` is set; the console `clear` command only emits

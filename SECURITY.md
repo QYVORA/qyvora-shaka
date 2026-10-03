@@ -35,7 +35,7 @@ in the next release and are backported only to the latest release branch.
 
 ## Contact
 
-- **Website:** https://qyvora.netlify.app
+- **Website:** https://qyvora.org
 - **Security contact:** qyvorasec@gmail.com
 - **Organisation:** QYVORA OffSec — Tamale, Ghana
 

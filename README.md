@@ -250,6 +250,19 @@ internal/version/      build identity
 pkg/models/            shared data model (finding.go, session.go, graph.go, …)
 ```
 
+## About QYVORA
+
+**QYVORA is an African cybersecurity company — built in Tamale, Ghana, serving the
+whole continent.** Its mission is to build Africa's strongest cybersecurity
+ecosystem and develop the talent to run it.
+
+Shaka is part of a fourteen-framework open-source offensive security toolkit. The
+frameworks are unrestricted free software, published for defenders and researchers
+across Africa and beyond.
+
+- Company and services: https://qyvora.org
+- All frameworks: https://github.com/QYVORA
+
 ## Contact
 
 QYVORA OffSec — Tamale, Ghana

@@ -5,7 +5,7 @@
 # This file is GENERATED from qyvora-dist/installer.template.sh.
 # Do not edit it by hand: change the template + qyvora-dist/tools.def, then run
 #   qyvora-dist/generate.sh
-# so all thirteen tools keep one shared, audited installer implementation.
+# so every tool keeps one shared, audited installer implementation.
 #
 # What this does, in order:
 #   1. Detects the real target: kernel, CPU, *userspace*, ABI and runtime

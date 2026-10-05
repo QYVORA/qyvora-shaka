@@ -116,34 +116,28 @@ func (u *consoleUI) Prompt(name string) string {
 	return u.paint(name, ansiBold+ansiBlue) + u.paint(" > ", ansiBold+ansiWhite)
 }
 
-func (u *consoleUI) bannerGlyph(r rune) string {
-	if !u.color || r == ' ' {
-		return string(r)
-	}
-	switch r {
-	case '@', '#', '%':
-		return ansiBlue + string(r) + ansiReset
-	case '*', '+':
-		return ansiGold + string(r) + ansiReset
-	case '=', '-', ':', '.':
-		return ansiCyan + string(r) + ansiReset
-	default:
-		return string(r)
-	}
-}
+// bannerGlyph is gone. It mapped '@', '#' and '%' to blue, '*' and '+' to gold
+// and the punctuation to cyan, a palette that belonged to the hand-drawn emblem
+// this banner no longer uses. ansiBlue, ansiGold and ansiCyan stay: they are
+// this console's general accents and are used by the prompt and the footers.
 
+// Banner prints the canonical brand banner followed by the tagline, in the
+// QYVORA accent.
+//
+// The colour comes from banner.Colorize, which is the single place the accent
+// is defined, but the console's own colour decision still wins: when colours
+// are off the plain art is printed even on a terminal that could show it, so
+// NO_COLOR is honoured by this surface too.
 func (u *consoleUI) Banner(tagline string) {
 	fmt.Fprintln(u.w)
-	lines := strings.Split(banner.Art, "\n")
-	for _, line := range lines {
-		if strings.TrimSpace(line) == "" && (line == lines[0] || line == lines[len(lines)-1]) {
+	for _, line := range strings.Split(banner.Art, "\n") {
+		if strings.TrimSpace(line) == "" {
 			continue
 		}
-		var b strings.Builder
-		for _, r := range line {
-			b.WriteString(u.bannerGlyph(r))
+		if u.color {
+			line = banner.Colorize(line)
 		}
-		fmt.Fprintln(u.w, b.String())
+		fmt.Fprintln(u.w, line)
 	}
 	fmt.Fprintln(u.w)
 	if tagline != "" {

@@ -4,7 +4,12 @@ BINARY ?= shaka
 PREFIX ?= /usr/local
 DESTDIR ?=
 
-VERSION ?= dev
+# The common contract requires a semantic version and rejects "dev", and an
+# install from source stamps whatever VERSION holds. Defaulting it to "dev"
+# therefore shipped a binary that failed its own version check, so the
+# default is the released version. Override for a real build:
+#   make install-user VERSION=v1.2.3
+VERSION ?= v0.1.0
 COMMIT  ?= $(shell git rev-parse --short HEAD 2>/dev/null || echo unknown)
 DATE    ?= $(shell date -u +%Y-%m-%dT%H:%M:%SZ)
 USER    ?= $(shell id -u -n)

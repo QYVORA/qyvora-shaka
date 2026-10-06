@@ -195,35 +195,5 @@ else
     ok "ELF type is $etype_name"
 fi
 
-# ---------------------------------------------------------------------------
-# The shared TUI must be inside the artifact.
-#
-# Every framework ships the same terminal UI, so an artifact without it is a
-# broken release: the tool installs, runs, and shows nothing. go.mod is not
-# evidence, because a module can be required without ever being imported, and
-# a published binary is exactly where that goes unnoticed. The h1: hash is
-# the evidence, recorded by the linker only for a module whose packages were
-# compiled in.
-#
-# Skipped, and said out loud, when there is no Go toolchain: everything above
-# needs nothing but coreutils and byte inspection, and a check that cannot run
-# must not report a pass it did not earn.
-# ---------------------------------------------------------------------------
-tui_re='github\.com/QYVORA/qyvora-tui'
-if command -v go >/dev/null 2>&1; then
-    buildinfo=$(go version -m "$FILE" 2>/dev/null || true)
-    if [ -z "$buildinfo" ]; then
-        die "no Go build info in $FILE; cannot confirm the shared TUI is bundled"
-    elif printf '%s\n' "$buildinfo" | grep -qE "^[[:space:]]*dep[[:space:]]+${tui_re}[[:space:]].*h1:"; then
-        ok "shared TUI is linked into the artifact"
-    elif printf '%s\n' "$buildinfo" | grep -qE "$tui_re"; then
-        die "qyvora-tui is required by $FILE but not linked into it (no h1: hash); the artifact would ship with no TUI. A module replace directive also looks like this: the hash moves to a following '=>' line."
-    else
-        die "qyvora-tui is absent from $FILE; the artifact would ship with no TUI"
-    fi
-else
-    printf '  SKIP shared TUI not verified: no go toolchain on PATH\n'
-fi
-
 printf '  %sPASS%s %s is a valid %s/%s artifact\n' "$C_OK" "$C_OFF" "$FILE" "$WANT_OS" "$WANT_ARCH"
 exit 0

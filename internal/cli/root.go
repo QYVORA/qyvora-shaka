@@ -25,6 +25,7 @@ import (
 )
 
 var app = newAppState()
+var updateFlag bool
 
 const appDescription = `shaka is a terminal-first CLI for authorized Microsoft Active Directory
 security assessment: discover, enumerate, correlate relationships, analyze
@@ -92,6 +93,15 @@ func ExecuteArgs(args []string) int {
 func ExecuteArgsContext(ctx context.Context, args []string) int {
 	rootCmd.SetArgs(args)
 
+	// If --update is passed, route to the update subcommand regardless of
+	// other positional arguments.
+	for _, a := range args {
+		if a == "--update" || a == "-update" || a == "--update=true" {
+			rootCmd.SetArgs([]string{"update"})
+			break
+		}
+	}
+
 	if err := rootCmd.Execute(); err != nil {
 		var exitErr *errs.ExitError
 		if errors.As(err, &exitErr) {
@@ -131,6 +141,7 @@ func init() {
 	})
 
 	pf := rootCmd.PersistentFlags()
+	pf.BoolVar(&updateFlag, "update", false, "update the CLI to the latest official release")
 	pf.StringVarP(&app.cfgFile, "config", "c", "", "config file (default $HOME/.config/qyvora/shaka/config.yaml)")
 	pf.BoolVarP(&app.verbose, "verbose", "v", false, "verbose output")
 	pf.BoolVarP(&app.quiet, "quiet", "q", false, "suppress non-error output")
@@ -140,9 +151,11 @@ func init() {
 	pf.BoolVar(&app.dryRun, "dry-run", false, "resolve and print the assessment plan without executing")
 	pf.StringVar(&app.timeout, "timeout", "", "default timeout for directory operations (e.g. 30s)")
 
-	rootCmd.PersistentFlags().BoolP("authorized", "y", false, "confirm authorization scope non-interactively")
+	rootCmd.PersistentFlags()
+	pf.BoolVar(&updateFlag, "update", false, "update the CLI to the latest official release").BoolP("authorized", "y", false, "confirm authorization scope non-interactively")
 
-	registerDirFlags(rootCmd.PersistentFlags())
+	registerDirFlags(rootCmd.PersistentFlags()
+	pf.BoolVar(&updateFlag, "update", false, "update the CLI to the latest official release"))
 
 	rootCmd.AddCommand(newVersionCmd())
 	rootCmd.AddCommand(newCapabilitiesCmd())

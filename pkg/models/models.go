@@ -38,3 +38,13 @@ func NewID(prefix string) string {
 	}
 	return prefix + "-" + hex.EncodeToString(b)
 }
+
+// NoiseLevel classifies operational footprint for OPSEC awareness.
+type NoiseLevel string
+
+const (
+	NoiseLevelPassive    NoiseLevel = "passive"     // Observation only, no detectable emissions
+	NoiseLevelLow        NoiseLevel = "low"         // Blends with normal behavior
+	NoiseLevelModerate   NoiseLevel = "moderate"    // Detectable but non-hostile patterns
+	NoiseLevelAggressive NoiseLevel = "aggressive"  // Obviously adversarial activity
+)

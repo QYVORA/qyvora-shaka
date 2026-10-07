@@ -36,6 +36,7 @@ type Finding struct {
 	Confidence     Confidence        `json:"confidence"`
 	Status         FindingStatus     `json:"status"`
 	State          State             `json:"state"`
+	Tier           string            `json:"tier,omitempty"` // Which tier produced this finding
 	Objects        []string          `json:"objects,omitempty"` // affected object identifiers
 	Evidence       []Evidence        `json:"evidence,omitempty"`
 	Attributes     map[string]string `json:"attributes,omitempty"`
@@ -74,4 +75,21 @@ func (f *Finding) Fingerprint() string {
 	}
 	sum := sha256.Sum256([]byte(b.String()))
 	return hex.EncodeToString(sum[:])
+}
+
+
+// TierPrefix returns the display prefix for a finding's tier
+func (f *Finding) TierPrefix() string {
+	switch f.Tier {
+	case "discovery", "enumeration":
+		return "[RECON]"
+	case "analysis":
+		return "[TECHNIQUE]"
+	case "authentication_probe":
+		return "[TECHNIQUE]"
+	case "offensive":
+		return "[EXPLOIT]"
+	default:
+		return ""
+	}
 }

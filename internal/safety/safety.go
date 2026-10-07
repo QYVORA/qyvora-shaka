@@ -28,6 +28,7 @@ type OperationMetadata struct {
 	Description  string           `json:"description"`
 	Class        Class            `json:"class"`
 	Risk         models.RiskLevel `json:"risk"`
+	NoiseLevel   models.NoiseLevel `json:"noise_level"` // OPSEC footprint
 	TargetType   string           `json:"target_type"`
 	AuthRequired bool             `json:"authorization_required"`
 	Privileges   []string         `json:"privileges,omitempty"`
@@ -43,35 +44,40 @@ var (
 	OpDomainDiscovery = OperationMetadata{
 		ID: "shaka.domain.discover", Name: "domain discovery",
 		Description: "Discover domains, domain controllers and the directory base.",
-		Class:       ClassDiscovery, Risk: models.RiskS1, TargetType: "domain",
+		Class:       ClassDiscovery, Risk: models.RiskS1, NoiseLevel: models.NoiseLevelPassive,
+		TargetType: "domain",
 		AuthRequired: true, Privileges: []string{"read directory"},
 		Confirm: false, ChangesState: false, Reversible: true,
 	}
 	OpDirectoryEnumerate = OperationMetadata{
 		ID: "shaka.directory.enumerate", Name: "directory enumeration",
 		Description: "Enumerate users, groups, computers, OUs and policies from LDAP.",
-		Class:       ClassEnumerat, Risk: models.RiskS1, TargetType: "domain",
+		Class:       ClassEnumerat, Risk: models.RiskS1, NoiseLevel: models.NoiseLevelLow,
+		TargetType: "domain",
 		AuthRequired: true, Privileges: []string{"read directory"},
 		Confirm: false, ChangesState: false, Reversible: true,
 	}
 	OpTrustAnalyze = OperationMetadata{
 		ID: "shaka.trusts.analyze", Name: "trust analysis",
 		Description: "Enumerate and analyze domain trust relationships.",
-		Class:       ClassEnumerat, Risk: models.RiskS1, TargetType: "domain",
+		Class:       ClassEnumerat, Risk: models.RiskS1, NoiseLevel: models.NoiseLevelLow,
+		TargetType: "domain",
 		AuthRequired: true, Privileges: []string{"read directory"},
 		Confirm: false, ChangesState: false, Reversible: true,
 	}
 	OpKerberosAssess = OperationMetadata{
 		ID: "shaka.kerberos.assess", Name: "kerberos assessment",
 		Description: "Assess Kerberos and authentication configuration.",
-		Class:       ClassEnumerat, Risk: models.RiskS1, TargetType: "domain",
+		Class:       ClassEnumerat, Risk: models.RiskS1, NoiseLevel: models.NoiseLevelLow,
+		TargetType: "domain",
 		AuthRequired: true, Privileges: []string{"read account configuration"},
 		Confirm: false, ChangesState: false, Reversible: true,
 	}
 	OpAuthProbe = OperationMetadata{
 		ID: "shaka.authentication.probe", Name: "authentication probe",
 		Description: "Attempt an authentication probe (e.g. AS-REP / pre-auth).",
-		Class:       ClassAuthProbe, Risk: models.RiskS2, TargetType: "domain",
+		Class:       ClassAuthProbe, Risk: models.RiskS2, NoiseLevel: models.NoiseLevelModerate,
+		TargetType: "domain",
 		AuthRequired: true, Privileges: []string{"authentication"},
 		Confirm: true, ChangesState: false, Reversible: true,
 	}

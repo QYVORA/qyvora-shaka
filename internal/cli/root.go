@@ -151,11 +151,10 @@ func init() {
 	pf.BoolVar(&app.dryRun, "dry-run", false, "resolve and print the assessment plan without executing")
 	pf.StringVar(&app.timeout, "timeout", "", "default timeout for directory operations (e.g. 30s)")
 
-	rootCmd.PersistentFlags()
-	pf.BoolVar(&updateFlag, "update", false, "update the CLI to the latest official release").BoolP("authorized", "y", false, "confirm authorization scope non-interactively")
+	rootCmd.PersistentFlags().BoolP("authorized", "y", false, "confirm authorization scope non-interactively")
 
-	registerDirFlags(rootCmd.PersistentFlags()
-	pf.BoolVar(&updateFlag, "update", false, "update the CLI to the latest official release"))
+	registerDirFlags(rootCmd.PersistentFlags())
+	pf.BoolVar(&updateFlag, "update", false, "update the CLI to the latest official release")
 
 	rootCmd.AddCommand(newVersionCmd())
 	rootCmd.AddCommand(newCapabilitiesCmd())

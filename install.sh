@@ -113,7 +113,17 @@ readonly EXIT_VERIFY=3
 # ---------------------------------------------------------------------------
 # Presentation
 # ---------------------------------------------------------------------------
-if [ -t 1 ] && [ -z "${NO_COLOR:-}" ]; then
+_has_color() {
+    # Disable if NO_COLOR is set
+    [ -z "${NO_COLOR:-}" ] || return 1
+    # Disable if not a TTY on stdout
+    [ -t 1 ] || return 1
+    # Disable for dumb terminals
+    [ "${TERM:-dumb}" != "dumb" ] || return 1
+    return 0
+}
+
+if _has_color; then
     C_RED='\033[1;31m'; C_GRN='\033[1;32m'; C_YEL='\033[1;33m'
     C_CYN='\033[1;36m'; C_DIM='\033[90m'; C_BLD='\033[1m'; C_OFF='\033[0m'
 else

@@ -154,7 +154,6 @@ func init() {
 	rootCmd.PersistentFlags().BoolP("authorized", "y", false, "confirm authorization scope non-interactively")
 
 	registerDirFlags(rootCmd.PersistentFlags())
-	pf.BoolVar(&updateFlag, "update", false, "update the CLI to the latest official release")
 
 	rootCmd.AddCommand(newVersionCmd())
 	rootCmd.AddCommand(newCapabilitiesCmd())

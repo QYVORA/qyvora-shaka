@@ -1,6 +1,9 @@
 package cli
 
-import "testing"
+import (
+	"strings"
+	"testing"
+)
 
 // TestReleaseArtifactName pins the release asset naming contract for shaka.
 //
@@ -13,12 +16,11 @@ import "testing"
 //
 //   - macOS assets are published as "macos", but Go reports GOOS "darwin".
 //   - Android/Termux is its own target: GOOS is "android" for a GOOS=android
-//     build and the asset is "{tool}-android-arm64". A linux/arm64 asset must
-//     never be substituted, because Android's bionic linker rejects an ET_EXEC
-//     binary with "unexpected e_type: 2".
-//   - Assets are bare executables. The updater writes the downloaded bytes to
-//     the executable path, so naming an archive produces a "successful" update
-//     that leaves an unrunnable binary.
+//     build and the asset is "shaka_<version>_android_<arch>". A linux/arm64
+//     asset must never be substituted, because Android's bionic linker rejects
+//     an ET_EXEC binary with "unexpected e_type: 2".
+//   - The asset name embeds the release version, so the updater must pass the
+//     resolved tag through to the naming function.
 func TestReleaseArtifactName(t *testing.T) {
 	cfg := shakaUpdateConfig()
 	if cfg.ArtifactName == nil {
@@ -28,33 +30,56 @@ func TestReleaseArtifactName(t *testing.T) {
 	tests := []struct {
 		goos, goarch, want string
 	}{
-		{"linux", "amd64", "shaka-linux-amd64"},
-		{"linux", "arm64", "shaka-linux-arm64"},
-		{"darwin", "amd64", "shaka-macos-amd64"},
-		{"darwin", "arm64", "shaka-macos-arm64"},
-		{"windows", "amd64", "shaka-windows-amd64.exe"},
-		{"windows", "arm64", "shaka-windows-arm64.exe"},
-		{"android", "arm64", "shaka-android-arm64"},
+		{"linux", "amd64", "shaka_0.1.0_linux_amd64.tar.gz"},
+		{"linux", "arm64", "shaka_0.1.0_linux_arm64.tar.gz"},
+		{"darwin", "amd64", "shaka_0.1.0_macos_amd64.tar.gz"},
+		{"darwin", "arm64", "shaka_0.1.0_macos_arm64.tar.gz"},
+		{"windows", "amd64", "shaka_0.1.0_windows_amd64.zip"},
+		{"windows", "arm64", "shaka_0.1.0_windows_arm64.zip"},
+		{"android", "arm64", "shaka_0.1.0_android_arm64.tar.gz"},
 	}
 
 	for _, tt := range tests {
-		if got := cfg.ArtifactName(tt.goos, tt.goarch); got != tt.want {
-			t.Errorf("ArtifactName(%q, %q) = %q, want %q", tt.goos, tt.goarch, got, tt.want)
+		if got := cfg.ArtifactName("v0.1.0", tt.goos, tt.goarch); got != tt.want {
+			t.Errorf("ArtifactName(%q, %q, %q) = %q, want %q", "v0.1.0", tt.goos, tt.goarch, got, tt.want)
 		}
 	}
 }
 
-// TestReleaseArtifactNameIsNeverAnArchive guards the specific failure mode of
-// an update that reports success and leaves an unrunnable binary behind.
-func TestReleaseArtifactNameIsNeverAnArchive(t *testing.T) {
+// TestReleaseArtifactNameStripsVersionPrefix pins that the leading "v" of a git
+// tag is not carried into the asset name, and that a bare version produces the
+// same name as its "v"-prefixed spelling.
+func TestReleaseArtifactNameStripsVersionPrefix(t *testing.T) {
 	cfg := shakaUpdateConfig()
-	for _, goos := range []string{"linux", "darwin", "windows", "android"} {
-		name := cfg.ArtifactName(goos, "arm64")
-		for _, bad := range []string{".tar.gz", ".tgz", ".zip", ".tar"} {
-			if len(name) >= len(bad) && name[len(name)-len(bad):] == bad {
-				t.Errorf("ArtifactName(%q, \"arm64\") = %q, which names an archive; "+
-					"the updater installs these bytes as the executable directly", goos, name)
-			}
+	withV := cfg.ArtifactName("v0.1.0", "linux", "amd64")
+	bare := cfg.ArtifactName("0.1.0", "linux", "amd64")
+	if withV != bare {
+		t.Errorf("ArtifactName(v0.1.0) = %q, ArtifactName(0.1.0) = %q; want equal", withV, bare)
+	}
+	const want = "shaka_0.1.0_linux_amd64.tar.gz"
+	if bare != want {
+		t.Errorf("ArtifactName(0.1.0, linux, amd64) = %q, want %q", bare, want)
+	}
+	if strings.Contains(bare, "_v") || strings.Contains(bare, "_V") {
+		t.Errorf("ArtifactName(0.1.0, linux, amd64) = %q; version prefix was not stripped", bare)
+	}
+}
+
+// TestReleaseArtifactNameIsAnArchive pins the archive naming contract: the
+// updater extracts the executable entry from the archive before installing, so
+// each platform must resolve to the archive suffix the pipeline publishes.
+func TestReleaseArtifactNameIsAnArchive(t *testing.T) {
+	cfg := shakaUpdateConfig()
+	wantSuffix := map[string]string{
+		"linux":   ".tar.gz",
+		"darwin":  ".tar.gz",
+		"android": ".tar.gz",
+		"windows": ".zip",
+	}
+	for goos, suffix := range wantSuffix {
+		name := cfg.ArtifactName("v0.1.0", goos, "arm64")
+		if !strings.HasSuffix(name, suffix) {
+			t.Errorf("ArtifactName(%q, \"arm64\") = %q, want a %q archive", goos, name, suffix)
 		}
 	}
 }
@@ -68,7 +93,9 @@ func TestChecksumAssetIsTheReleaseManifest(t *testing.T) {
 		t.Fatal("ChecksumAsset is nil; the update would be unverified")
 	}
 	for _, artifact := range []string{
-		"shaka-linux-amd64", "shaka-macos-arm64", "shaka-android-arm64",
+		"shaka_0.1.0_linux_amd64.tar.gz",
+		"shaka_0.1.0_macos_arm64.tar.gz",
+		"shaka_0.1.0_android_arm64.tar.gz",
 	} {
 		if got := cfg.ChecksumAsset(artifact); got != "checksums.txt" {
 			t.Errorf("ChecksumAsset(%q) = %q, want \"checksums.txt\"", artifact, got)

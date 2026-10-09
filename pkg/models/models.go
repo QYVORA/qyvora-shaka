@@ -43,8 +43,8 @@ func NewID(prefix string) string {
 type NoiseLevel string
 
 const (
-	NoiseLevelPassive    NoiseLevel = "passive"     // Observation only, no detectable emissions
-	NoiseLevelLow        NoiseLevel = "low"         // Blends with normal behavior
-	NoiseLevelModerate   NoiseLevel = "moderate"    // Detectable but non-hostile patterns
-	NoiseLevelAggressive NoiseLevel = "aggressive"  // Obviously adversarial activity
+	NoiseLevelPassive    NoiseLevel = "passive"    // Observation only, no detectable emissions
+	NoiseLevelLow        NoiseLevel = "low"        // Blends with normal behavior
+	NoiseLevelModerate   NoiseLevel = "moderate"   // Detectable but non-hostile patterns
+	NoiseLevelAggressive NoiseLevel = "aggressive" // Obviously adversarial activity
 )

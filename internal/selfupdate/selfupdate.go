@@ -49,8 +49,9 @@ type Config struct {
 	ToolName string
 	// CurrentVersion returns the running binary's version.
 	CurrentVersion func() string
-	// ArtifactName maps GOOS/GOARCH to the release asset name.
-	ArtifactName func(goos, goarch string) string
+	// ArtifactName maps the release version and GOOS/GOARCH to the release
+	// asset name.
+	ArtifactName func(version, goos, goarch string) string
 	// ChecksumAsset returns the name of the manifest asset.
 	ChecksumAsset func(artifact string) string
 	// APIBaseURL overrides the GitHub API base (tests point it locally).
@@ -110,7 +111,7 @@ func Run(ctx context.Context, cfg Config, opts Options) (Result, error) {
 		return res, nil
 	}
 
-	artifact := cfg.ArtifactName(runtime.GOOS, runtime.GOARCH)
+	artifact := cfg.ArtifactName(res.Latest, runtime.GOOS, runtime.GOARCH)
 	if artifact == "" {
 		return res, upErr(KindPlatform, "", nil).withTool(cfg.ToolName)
 	}
@@ -153,7 +154,12 @@ func Run(ctx context.Context, cfg Config, opts Options) (Result, error) {
 		}
 	}
 
-	if err := atomicInstall(path, data); err != nil {
+	bin, xerr := extractBinary(data, artifact, cfg.ToolName)
+	if xerr != nil {
+		return res, upErr(KindInstall, "extracting "+artifact, xerr).withTool(cfg.ToolName)
+	}
+
+	if err := atomicInstall(path, bin); err != nil {
 		return res, err
 	}
 	res.Status = StatusUpdated

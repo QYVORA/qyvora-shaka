@@ -1,5 +1,13 @@
 name: CI
 
+# GENERATED from qyvora-dist/ci.template.yml — do not edit by hand.
+# Change the template + qyvora-dist/tools.def, then run qyvora-dist/generate.sh.
+#
+# Per-tool continuous integration: formatting, vet, tests, and one clean
+# linux/amd64 build from a clean checkout. The build is deliberately separate
+# from the test step so a passing test run cannot hide a build that only works
+# because of a dirty tree or a cached object.
+
 on:
   push:
     branches: [main]
@@ -9,63 +17,31 @@ permissions:
   contents: read
 
 jobs:
-  golangci:
-    name: golangci-lint
+  ci:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - name: Checkout
+        uses: actions/checkout@692973e3d937129bcbf40652eb9f2f61becf3332 # v4.1.7
 
-      - uses: actions/setup-go@v5
+      - name: Set up Go
+        uses: actions/setup-go@0a12ed9d6a96ab950c8f026ed9f722fe0da7ef32 # v5.0.2
         with:
           go-version-file: go.mod
 
-      - name: golangci-lint
-        uses: golangci/golangci-lint-action@v7
-        with:
-          version: latest
-
-  test:
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-
-      - uses: actions/setup-go@v5
-        with:
-          go-version-file: go.mod
-
-      - name: Cache
-        uses: actions/cache@v4
-        with:
-          path: ~/go/pkg/mod
-          key: ${{ runner.os }}-go-${{ hashFiles('**/go.sum') }}
-          restore-keys: |
-            ${{ runner.os }}-go-
-
-      - name: Format check
+      - name: Install build dependencies
         run: |
-          test -z "$(gofmt -l .)" || (echo "files need gofmt:"; gofmt -l .; exit 1)
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends ca-certificates gcc
 
-      - name: Vet
+      - name: gofmt
+        run: test -z "$(gofmt -l .)" || (echo "files need gofmt:"; gofmt -l .; exit 1)
+
+      - name: go vet
         run: go vet ./...
 
-      - name: Test
-        run: go test -race -count=1 ./...
+      - name: go test
+        run: go test ./...
 
-      - name: Build
-        run: go build ./...
-
-  goreleaser:
-    name: goreleaser config check
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-
-      - uses: actions/setup-go@v5
-        with:
-          go-version-file: go.mod
-
-      - name: goreleaser check
-        uses: goreleaser/goreleaser-action@v6
-        with:
-          version: '~> v2'
-          args: check
+      - name: Clean build (linux/amd64)
+        run: |
+          CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build ./...

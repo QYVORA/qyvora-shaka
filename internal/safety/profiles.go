@@ -8,13 +8,13 @@ import (
 
 // Profile defines operational parameters for running operations
 type Profile struct {
-	Name             string              // Profile name
-	Description      string              // Profile description
-	MaxNoiseLevel    models.NoiseLevel   // Maximum allowed noise level
-	RateLimit        time.Duration       // Minimum delay between operations
-	Jitter           time.Duration       // Timing jitter for anti-fingerprinting
-	MaxParallel      int                 // Maximum parallel operations
-	PreferSimulation bool                // Prefer simulation when available
+	Name             string            // Profile name
+	Description      string            // Profile description
+	MaxNoiseLevel    models.NoiseLevel // Maximum allowed noise level
+	RateLimit        time.Duration     // Minimum delay between operations
+	Jitter           time.Duration     // Timing jitter for anti-fingerprinting
+	MaxParallel      int               // Maximum parallel operations
+	PreferSimulation bool              // Prefer simulation when available
 }
 
 // Predefined operational profiles

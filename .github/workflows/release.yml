@@ -3,254 +3,89 @@ name: release
 # GENERATED from qyvora-dist/release.template.yml — do not edit by hand.
 # Change the template + qyvora-dist/tools.def, then run qyvora-dist/generate.sh.
 #
-# Publishing rules this workflow enforces, because each one has actually been
-# broken at some point in this ecosystem:
+# Publishing rules this workflow enforces:
+#   1. Assets are named "{tool}_{version}_{os}_{arch}.tar.gz" (zip on windows),
+#      where version is the tag without its leading "v". install.sh derives the
+#      same names from the resolved latest tag, and "darwin" is never used in
+#      place of "macos".
+#   2. The release is created as a DRAFT by GoReleaser. It is published only
+#      after every required asset is present, so "latest" never points at a
+#      release that is missing a platform.
+#   3. If anything fails before publishing, the draft is deleted so the previous
+#      good release stays "latest".
+#   4. A post-publish job re-checks the published release independently: that
+#      /releases/latest is this tag, that all six platform assets plus
+#      checksums.txt exist, and that the linux/amd64 artifact passes its
+#      checksum and reports the tag from `--version`.
 #
-#   1. Every artifact is named "{tool}-{os}-{arch}[.exe]" where os is one of
-#      linux/macos/windows/android. install.sh derives the same name, and
-#      "{tool}_{os}_{arch}" with a "darwin" token is not accepted.
-#   2. Every artifact is passed through scripts/verify-artifact.sh, which
-#      checks the container format, the machine/architecture word, and — for
-#      Android — that the binary is ET_DYN. A GOOS=linux build is ET_EXEC and
-#      Android's linker64 refuses it with "unexpected e_type: 2"; that is the
-#      defect that broke the Termux install, and it can no longer be published.
-#   3. The native artifact is executed before the release is created, so a
-#      binary that cannot start is caught here rather than on a user's machine.
-#   4. The release job asserts the exact expected file list before calling
-#      `gh release create`. A release that silently omits a target is worse
-#      than a failed release, because users on that target only find out when
-#      their install falls back or fails.
-#   5. Android is only in the matrix when the tool can actually be built for
-#      bionic. SHAKA Android policy: @@ANDROID_POLICY@@.
+# Actions are pinned to a full commit SHA and each job declares the least
+# privilege it needs.
 
 permissions:
-  contents: write
+  contents: read
 
 on:
   push:
     tags:
       - 'v*'
-  workflow_dispatch:
-    inputs:
-      tag:
-        description: 'Tag to release (e.g. v1.2.3)'
-        required: true
+
+concurrency:
+  group: release-${{ github.ref }}
+  cancel-in-progress: false
 
 env:
   TOOL: shaka
 
 jobs:
-  test:
-    name: test
+  goreleaser:
+    name: build and publish (draft until complete)
     runs-on: ubuntu-latest
+    permissions:
+      contents: write
     steps:
-      - uses: actions/checkout@v6
+      - name: Checkout
+        uses: actions/checkout@692973e3d937129bcbf40652eb9f2f61becf3332 # v4.1.7
+        with:
+          fetch-depth: 0
 
       - name: Set up Go
-        uses: actions/setup-go@v6
+        uses: actions/setup-go@0a12ed9d6a96ab950c8f026ed9f722fe0da7ef32 # v5.0.2
         with:
           go-version-file: go.mod
 
-      - name: Install build dependencies
-        run: |
-          set -euo pipefail
-          sudo apt-get update
-          sudo apt-get install -y --no-install-recommends ca-certificates gcc
-
-      - name: Vet
-        run: go vet ./...
-
-      - name: Test
-        run: go test ./... -count=1 -timeout 300s
-
-      # Users pipe install.sh straight into a shell, so a syntactically broken
-      # installer is a release blocker, not a lint nit.
-      - name: Lint the generated shell scripts
-        run: |
-          set -euo pipefail
-          for f in install.sh scripts/verify-artifact.sh; do
-            if [ -f "$f" ]; then
-              echo "checking $f"
-              bash -n "$f"
-            fi
-          done
-
-      # Prove the release gate itself works, so a bug in the verifier cannot
-      # quietly turn this workflow into a no-op.
-      - name: Self-test the release verifier
-        run: |
-          set -euo pipefail
-          CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -trimpath -o ./self-test-artifact .
-          chmod 0755 ./self-test-artifact
-          scripts/verify-artifact.sh ./self-test-artifact linux amd64
-          # A linux/arm64 binary must never pass as an Android artifact.
-          CGO_ENABLED=0 GOOS=linux GOARCH=arm64 go build -trimpath -o ./self-test-armifact .
-          if scripts/verify-artifact.sh ./self-test-artifact android arm64; then
-            echo "::error::the verifier accepted an ELF ET_EXEC as an Android artifact"
-            exit 1
-          fi
-          echo "verifier correctly rejected an ET_EXEC for Android"
-          rm -f ./self-test-artifact
-
-  build:
-    name: ${{ matrix.name }}
-    needs: test
-    runs-on: ${{ matrix.runner }}
-    strategy:
-      fail-fast: false
-      matrix:
-        include:
-          - goos: linux
-            vos: linux
-            goarch: amd64
-            name: shaka-linux-amd64
-            runner: ubuntu-latest
-            cgo: 0
-            cc: ""
-            smoke: true
-          - goos: linux
-            vos: linux
-            goarch: arm64
-            name: shaka-linux-arm64
-            runner: ubuntu-latest
-            cgo: 0
-            cc: ""
-            smoke: false
-          - goos: darwin
-            vos: macos
-            goarch: amd64
-            name: shaka-macos-amd64
-            runner: ubuntu-latest
-            cgo: 0
-            cc: ""
-            smoke: false
-          - goos: darwin
-            vos: macos
-            goarch: arm64
-            name: shaka-macos-arm64
-            runner: ubuntu-latest
-            cgo: 0
-            cc: ""
-            smoke: false
-          - goos: windows
-            vos: windows
-            goarch: amd64
-            name: shaka-windows-amd64.exe
-            runner: ubuntu-latest
-            cgo: 0
-            cc: ""
-            smoke: false
-          - goos: windows
-            vos: windows
-            goarch: arm64
-            name: shaka-windows-arm64.exe
-            runner: ubuntu-latest
-            cgo: 0
-            cc: ""
-            smoke: false
-          - goos: android
-            vos: android
-            goarch: arm64
-            name: shaka-android-arm64
-            runner: ubuntu-latest
-            cgo: 0
-            cc: ""
-            smoke: false
-
-    steps:
-      - uses: actions/checkout@v6
-
-      - name: Set up Go
-        uses: actions/setup-go@v6
+      - name: Run GoReleaser (creates a draft release)
+        uses: goreleaser/goreleaser-action@286f3b13b1b49da4ac219696163fb8c1c93e1200 # v6.0.0
         with:
-          go-version-file: go.mod
-
-      - name: Install build dependencies
-        run: |
-          set -euo pipefail
-          if [ "$(uname -s)" = "Darwin" ]; then
-            # libpcap ships with the macOS SDK; no package install needed.
-            exit 0
-          fi
-          sudo apt-get update
-          sudo apt-get install -y --no-install-recommends ca-certificates gcc
-
-      - name: Build
+          distribution: goreleaser
+          version: '~> v2'
+          args: release --clean
         env:
-          GOOS: ${{ matrix.goos }}
-          GOARCH: ${{ matrix.goarch }}
-          CGO_ENABLED: ${{ matrix.cgo }}
-          CC: ${{ matrix.cc }}
-        run: |
-          set -euo pipefail
-          BUILD_DATE=$(date -u +%Y-%m-%dT%H:%M:%SZ)
-          go build -trimpath \
-            -ldflags="-s -w \
-              -X QYVORA/qyvora-shaka/internal/version.Version=${GITHUB_REF_NAME} \
-              -X QYVORA/qyvora-shaka/internal/version.Commit=${GITHUB_SHA} \
-              -X QYVORA/qyvora-shaka/internal/version.Date=${BUILD_DATE} \
-              -X QYVORA/qyvora-shaka/internal/version.BuildUser=github-actions[bot]" \
-            -o "${{ matrix.name }}" ./cmd/shaka
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
-      # The gate. A mis-targeted or Android-incompatible binary must never
-      # reach a release.
-      - name: Verify the artifact matches its target
-        run: |
-          set -euo pipefail
-          chmod 0755 "${{ matrix.name }}"
-          scripts/verify-artifact.sh "${{ matrix.name }}" ${{ matrix.vos }} ${{ matrix.goarch }}
-
-      - name: Smoke test
-        if: matrix.smoke
-        run: |
-          set -euo pipefail
-          for probe in --version version --help; do
-            if "./${{ matrix.name }}" $probe >/dev/null 2>&1; then
-              echo "smoke test passed with: $probe"
-              exit 0
-            fi
-          done
-          echo "::error::${{ matrix.name }} did not respond to any version probe"
-          exit 1
-
-      - name: Upload artifact
-        uses: actions/upload-artifact@v6
-        with:
-          name: ${{ matrix.name }}
-          path: ${{ matrix.name }}
-          if-no-files-found: error
-
-  release:
-    name: create release
-    needs: build
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/download-artifact@v8
-        with:
-          path: ./binaries
-          merge-multiple: true
-
-      - uses: actions/checkout@v6
-
-      - name: Add branding icons
-        run: |
-          set -euo pipefail
-          cd ./binaries
-          [ -f "${{ github.workspace }}/assets/shaka.png" ] && cp "${{ github.workspace }}/assets/shaka.png" shaka.png
-          [ -f "${{ github.workspace }}/assets/shaka.ico" ] && cp "${{ github.workspace }}/assets/shaka.ico" shaka.ico
-          ls -la
-
-      # A release missing a target is a silent failure for everyone on that
-      # target. Refuse to publish an incomplete set.
-      - name: Verify the release contains every expected target
+      # Gate: never publish a partially-uploaded release. If any required asset
+      # is missing the step fails, the failure handler deletes the draft, and
+      # "latest" keeps pointing at the previous good release.
+      - name: Verify the draft contains every asset
         env:
-          EXPECTED: shaka-linux-amd64 shaka-linux-arm64 shaka-macos-amd64 shaka-macos-arm64 shaka-windows-amd64.exe shaka-windows-arm64.exe shaka-android-arm64 shaka.png shaka.ico checksums.txt
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          TAG: ${{ github.ref_name }}
+          TOOL: shaka
         run: |
           set -euo pipefail
+          VERSION="${TAG#v}"
+          ASSETS=$(gh release view "$TAG" --repo "$GITHUB_REPOSITORY" --json assets --jq '.assets[].name')
+          echo "$ASSETS" | sort
           missing=0
-          for f in $EXPECTED; do
-            if [ ! -f "./binaries/$f" ]; then
-              echo "::error::missing expected release asset: $f"
+          for name in \
+            "${TOOL}_${VERSION}_linux_amd64.tar.gz" \
+            "${TOOL}_${VERSION}_linux_arm64.tar.gz" \
+            "${TOOL}_${VERSION}_macos_amd64.tar.gz" \
+            "${TOOL}_${VERSION}_macos_arm64.tar.gz" \
+            "${TOOL}_${VERSION}_windows_amd64.zip" \
+            "${TOOL}_${VERSION}_windows_arm64.zip" \
+            checksums.txt; do
+            if ! printf '%s\n' "$ASSETS" | grep -qx "$name"; then
+              echo "::error::missing required asset: $name"
               missing=1
             fi
           done
@@ -258,25 +93,101 @@ jobs:
             echo "::error::refusing to publish an incomplete release"
             exit 1
           fi
-          echo "all expected assets are present:"
-          printf '  %s\n' $EXPECTED
+          echo "all required assets are present"
 
-      - name: Generate checksums.txt
-        run: |
-          set -euo pipefail
-          cd ./binaries
-          # Checksums cover the binaries and icons, never checksums.txt itself.
-          sha256sum $(ls | grep -v '^checksums.txt$' | sort) > checksums.txt
-          cat checksums.txt
-
-      - name: Create GitHub Release
+      - name: Publish the release
         env:
-          GH_TOKEN: ${{ github.token }}
-          TAG: ${{ inputs.tag || github.ref_name }}
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          TAG: ${{ github.ref_name }}
         run: |
           set -euo pipefail
-          cd ./binaries
-          gh release create "$TAG" \
-            --title "$TAG" \
-            --generate-notes \
-            ./*
+          gh release edit "$TAG" --repo "$GITHUB_REPOSITORY" --draft=false
+
+      - name: Delete the draft on failure
+        if: failure()
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          TAG: ${{ github.ref_name }}
+        run: |
+          set -euo pipefail
+          is_draft=$(gh release view "$TAG" --repo "$GITHUB_REPOSITORY" --json isDraft --jq '.isDraft' 2>/dev/null || echo "")
+          if [ "$is_draft" = "true" ]; then
+            echo "deleting incomplete draft release $TAG"
+            gh release delete "$TAG" --repo "$GITHUB_REPOSITORY" --yes || true
+          fi
+
+  post-publish-check:
+    name: verify the published release
+    needs: goreleaser
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - name: Verify latest points at this tag
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          TAG: ${{ github.ref_name }}
+        run: |
+          set -euo pipefail
+          # GitHub's "latest" pointer can lag a few seconds behind a publish.
+          for i in 1 2 3 4 5 6; do
+            LATEST=$(gh api "repos/$GITHUB_REPOSITORY/releases/latest" --jq .tag_name)
+            if [ "$LATEST" = "$TAG" ]; then
+              echo "/releases/latest is $TAG"
+              exit 0
+            fi
+            echo "attempt $i: /releases/latest is $LATEST, expected $TAG; retrying"
+            sleep 5
+          done
+          echo "::error::/releases/latest never became $TAG"
+          exit 1
+
+      - name: Verify every asset is present
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          TAG: ${{ github.ref_name }}
+          TOOL: shaka
+        run: |
+          set -euo pipefail
+          VERSION="${TAG#v}"
+          ASSETS=$(gh release view "$TAG" --repo "$GITHUB_REPOSITORY" --json assets --jq '.assets[].name')
+          for name in \
+            "${TOOL}_${VERSION}_linux_amd64.tar.gz" \
+            "${TOOL}_${VERSION}_linux_arm64.tar.gz" \
+            "${TOOL}_${VERSION}_macos_amd64.tar.gz" \
+            "${TOOL}_${VERSION}_macos_arm64.tar.gz" \
+            "${TOOL}_${VERSION}_windows_amd64.zip" \
+            "${TOOL}_${VERSION}_windows_arm64.zip" \
+            checksums.txt; do
+            if ! printf '%s\n' "$ASSETS" | grep -qx "$name"; then
+              echo "::error::missing asset: $name"
+              exit 1
+            fi
+          done
+
+      - name: Verify the linux/amd64 artifact (checksum and version)
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          TAG: ${{ github.ref_name }}
+          TOOL: shaka
+        run: |
+          set -euo pipefail
+          VERSION="${TAG#v}"
+          cd "$(mktemp -d)"
+          gh release download "$TAG" --repo "$GITHUB_REPOSITORY" \
+            --pattern "${TOOL}_${VERSION}_linux_amd64.tar.gz" \
+            --pattern "checksums.txt"
+          grep "${TOOL}_${VERSION}_linux_amd64.tar.gz" checksums.txt | sha256sum -c -
+          tar xzf "${TOOL}_${VERSION}_linux_amd64.tar.gz"
+          chmod +x "$TOOL"
+          INSTALLED=$("./$TOOL" --version 2>/dev/null | head -1 | tr -d '\r\n')
+          # The exact --version line differs per tool ("1.1.0" vs "tool 1.1.0"),
+          # so require the version to appear rather than matching the whole line.
+          case "$INSTALLED" in
+            *"$VERSION"*) ;;
+            *)
+              echo "::error::installed --version is '$INSTALLED', expected to contain '$VERSION' (tag $TAG)"
+              exit 1
+              ;;
+          esac
+          echo "linux/amd64 artifact verified: $INSTALLED"

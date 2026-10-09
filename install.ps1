@@ -33,6 +33,7 @@ $Tool       = 'shaka'
 $ToolTitle  = 'SHAKA'
 $Repo       = 'QYVORA/qyvora-shaka'
 $MainPkg    = './cmd/shaka'
+$VersionPkg = 'github.com/QYVORA/qyvora-shaka/internal/version'
 $Android    = 'prebuilt'
 $SourceBuild = '1'
 $MinGo      = '1.26'
@@ -96,10 +97,25 @@ function Add-ToUserPath {
 }
 
 function Get-ArtifactName {
-    param([string]$Arch)
-    $name = "$Tool-windows-$Arch"
-    if ($Arch -eq 'amd64' -or $Arch -eq 'arm64') { $name += '.exe' }
-    return $name
+    param([string]$Arch, [string]$Tag)
+    # Must match goreleaser's name_template exactly:
+    #   <project>_<version>_<os>_<arch>   (version has no leading "v", windows is .zip)
+    $ver = $Tag -replace '^v', ''
+    return "$Tool`_$ver`_windows_$Arch.zip"
+}
+
+function Resolve-LatestTag {
+    # The whole install is pinned to one concrete tag, never to the mutable
+    # "latest" alias, so the artifact name, checksum and reported version all
+    # describe the same release.
+    $api = "https://api.github.com/repos/$Repo/releases/latest"
+    try {
+        $resp = Invoke-RestMethod -Uri $api -UseBasicParsing -MaximumRedirection 5 -Headers @{ 'User-Agent' = 'qyvora-installer' }
+        if ($resp.tag_name) { return $resp.tag_name }
+    } catch {
+        Stop-With $ExitFatal "Could not resolve the latest release for ${ToolTitle}: $($_.Exception.Message)"
+    }
+    Stop-With $ExitFatal "Could not resolve the latest release for $ToolTitle. Pin one with -Version vX.Y.Z."
 }
 
 function Invoke-Download {
@@ -241,17 +257,22 @@ if ($arch -eq 'i386') {
 }
 
 $installDir = Get-InstallDir
-$artifact = Get-ArtifactName $arch
 
+# Resolve the concrete release tag up front. -Version pins it explicitly;
+# otherwise ask the GitHub API for the latest release.
 if ([string]::IsNullOrEmpty($Version)) {
-    $baseUrl = "https://github.com/$Repo/releases/latest/download"
+    $resolvedTag = Resolve-LatestTag
 } else {
     if ($Version -notmatch '^[A-Za-z0-9._-]+$') { Stop-With $ExitFatal "Invalid release tag: $Version" }
-    $baseUrl = "https://github.com/$Repo/releases/download/$Version"
+    $resolvedTag = $Version
 }
+$resolvedVer = $resolvedTag -replace '^v', ''
+$artifact = Get-ArtifactName $arch $resolvedTag
+$baseUrl = "https://github.com/$Repo/releases/download/$resolvedTag"
 
 Write-Host ''
 Write-Info "Detected windows/$arch"
+Write-Info "Resolved release: $resolvedTag"
 Write-Info "Install directory: $installDir"
 
 $work = Join-Path ([System.IO.Path]::GetTempPath()) ("qyvora-" + $Tool + "-" + [Guid]::NewGuid().ToString('N'))
@@ -262,20 +283,23 @@ try {
 
     if ($usePrebuilt) {
         Write-Info "Downloading $artifact..."
-        if (Invoke-Download "$baseUrl/$artifact" $downloaded) {
-            $sums = Join-Path $work 'checksums.txt'
-            if (-not (Invoke-Download "$baseUrl/checksums.txt" $sums)) {
-                Stop-With $ExitVerify 'Could not download checksums.txt; refusing to install an unverified artifact.'
-            }
-            if (-not (Test-Checksum $downloaded $artifact $sums)) {
-                Stop-With $ExitVerify 'Checksum verification failed. Nothing was installed.'
-            }
-            if (-not (Test-Executable $downloaded $arch)) {
-                Stop-With $ExitVerify "Artifact $artifact is not compatible with windows/$arch. Nothing was installed."
-            }
-        } else {
-            $usePrebuilt = $false
-            Write-Warn "No published artifact named $artifact."
+        if (-not (Invoke-Download "$baseUrl/$artifact" $downloaded)) {
+            Stop-With $ExitVerify "Release $resolvedTag has no artifact named $artifact. The release is incomplete for this platform; nothing was installed."
+        }
+        $sums = Join-Path $work 'checksums.txt'
+        if (-not (Invoke-Download "$baseUrl/checksums.txt" $sums)) {
+            Stop-With $ExitVerify 'Could not download checksums.txt; refusing to install an unverified artifact.'
+        }
+        if (-not (Test-Checksum $downloaded $artifact $sums)) {
+            Stop-With $ExitVerify 'Checksum verification failed. Nothing was installed.'
+        }
+        $unpack = Join-Path $work 'unpack'
+        Expand-Archive -LiteralPath $downloaded -DestinationPath $unpack -Force
+        $exe = Get-ChildItem -LiteralPath $unpack -Recurse -Filter "$Tool*.exe" | Select-Object -First 1
+        if (-not $exe) { Stop-With $ExitVerify "Archive did not contain a $Tool executable." }
+        $downloaded = $exe.FullName
+        if (-not (Test-Executable $downloaded $arch)) {
+            Stop-With $ExitVerify "Artifact $artifact is not compatible with windows/$arch. Nothing was installed."
         }
     }
 
@@ -288,16 +312,24 @@ try {
             Write-Note "Download it from https://go.dev/dl/ and re-run this installer."
             exit $ExitFatal
         }
-        $srcRoot = if (Test-Path (Join-Path $PWD 'go.mod')) { $PWD.Path } else { $null }
-        if (-not $srcRoot) {
-            Stop-With $ExitFatal 'Source builds must run from a checkout of the repository (no go.mod here).'
+        # Always build the resolved tag, never a local checkout: the point is to
+        # install the same release a prebuilt download would give.
+        $tar = Join-Path $work 'src.zip'
+        if (-not (Invoke-Download "https://codeload.github.com/$Repo/zip/refs/tags/$resolvedTag" $tar)) {
+            Stop-With $ExitFatal "Could not download source for $resolvedTag."
         }
-        Write-Info 'Building from the local checkout...'
+        $srcRoot = Join-Path $work 'src'
+        Expand-Archive -LiteralPath $tar -DestinationPath $srcRoot -Force
+        $srcDir = Get-ChildItem -LiteralPath $srcRoot -Directory | Select-Object -First 1
+        if (-not $srcDir) { Stop-With $ExitFatal 'Source archive did not unpack as expected.' }
+        $date = (Get-Date).ToUniversalTime().ToString('yyyy-MM-ddTHH:mm:ssZ')
+        $ld = "-s -w -X $VersionPkg.Version=$resolvedVer -X $VersionPkg.Commit=$resolvedTag -X $VersionPkg.Date=$date -X $VersionPkg.BuildUser=source-build"
+        Write-Info "Building from source at $resolvedTag..."
         $downloaded = Join-Path $work "$Tool.exe"
-        Push-Location $srcRoot
+        Push-Location $srcDir.FullName
         try {
             $env:CGO_ENABLED = '0'
-            & go build -trimpath -ldflags '-s -w' -o $downloaded $MainPkg
+            & go build -trimpath -ldflags $ld -o $downloaded $MainPkg
             if ($LASTEXITCODE -ne 0) { Stop-With $ExitFatal 'Source build failed.' }
         } finally { Pop-Location }
         if (-not (Test-Executable $downloaded $arch)) {
@@ -338,10 +370,21 @@ try {
     }
     if ($backup) { Remove-Item -LiteralPath $backup -Force }
 
+    # --- Version check ----------------------------------------------------
+    # The installed binary must actually report the tag we resolved. If it does
+    # not, the install is wrong and the exit code must say so.
+    $reported = ''
+    try { $reported = (& $dest version 2>$null | Select-Object -First 1) } catch { }
+    if ($reported -and ($reported -notmatch [regex]::Escape($resolvedVer))) {
+        Stop-With $ExitVerify "Installed binary reports '$reported', but the resolved release is '$resolvedTag'. Refusing to report success."
+    }
+
     Add-ToUserPath $installDir
     Install-DesktopIntegration $installDir | Out-Null
 
     Write-Host ''
+    Write-Host '  Selected release' -ForegroundColor White
+    Write-Host "    [OK] $resolvedTag"
     Write-Host '  Installation' -ForegroundColor White
     Write-Host "    [OK] Binary installed to $dest"
     Write-Host "    [OK] PATH contains $installDir"

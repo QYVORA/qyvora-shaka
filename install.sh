@@ -51,6 +51,7 @@
 # Environment overrides (all optional):
 #   QYVORA_INSTALL_DIR   override the install directory
 #   QYVORA_VERSION       install a specific release tag instead of latest
+#   VERSION              alias for QYVORA_VERSION (e.g. VERSION=v1.2.3)
 #   QYVORA_ALLOW_UNVERIFIED=1  proceed without a checksum match (never recommended)
 #   QYVORA_NO_DESKTOP=1  skip desktop icon / .desktop integration
 #   QYVORA_NO_PATH=1     do not add the install directory to PATH
@@ -69,7 +70,7 @@ QYVORA_TITLE="SHAKA"
 QYVORA_REPO="QYVORA/qyvora-shaka"
 QYVORA_MAIN_PKG="./cmd/shaka"
 # How the release publishes: binary (bare executable) | tar.gz | zip
-QYVORA_PACKAGE="binary"
+QYVORA_PACKAGE="tar.gz"
 # Android/Termux policy: prebuilt | source-only | unsupported
 QYVORA_ANDROID="prebuilt"
 # Whether a local source build fallback is offered
@@ -89,6 +90,9 @@ QYVORA_VERSION_PROBE="--version version --help"
 QYVORA_DESKTOP_ASSET="shaka.desktop"
 # Install man pages from the source tree when present (1/0)
 QYVORA_MAN_PAGES="0"
+# Import path of the package holding the Version/Commit/Date vars, for source
+# builds. Must be the full module path; `-X` silently ignores anything else.
+QYVORA_VERSION_PKG="github.com/QYVORA/qyvora-shaka/internal/version"
 
 # Planning state. These are safe defaults so that the dependency check in main()
 # can read them before plan_target() runs under `set -u`; plan_target() is what
@@ -96,6 +100,9 @@ QYVORA_MAN_PAGES="0"
 QYVORA_WANT_PREBUILT=1
 QYVORA_ARTIFACT=""
 QYVORA_BASE_URL=""
+# The concrete release tag this run is pinned to. Set by plan_target() after
+# resolving "latest"; never left pointing at a branch.
+QYVORA_VERSION_RESOLVED=""
 # Set by --prefix or QYVORA_INSTALL_DIR; otherwise compute_install_dir() picks
 # the platform default. Declared here so the argument parser can read it under
 # `set -u` before compute_install_dir() has run.
@@ -385,27 +392,89 @@ unsupported_android_reason() {
     printf 'no compatible Android/Termux artifact is published for this architecture (%s).\n' "$QYVORA_ARCH"
 }
 
-# Decide the artifact name for this machine, or explain why we will not.
+# fetch_redirect <url>: print the URL that <url> finally resolves to, following
+# GitHub's redirects. Used as a fallback for resolving the latest tag without
+# the API's unauthenticated rate limit.
+fetch_redirect() {
+    local url="$1"
+    case "$url" in
+        https://github.com/*) : ;;
+        *) return 1 ;;
+    esac
+    if command -v curl >/dev/null 2>&1; then
+        curl -fsSL --proto '=https' --tlsv1.2 --proto-redir '=https' \
+             --connect-timeout 15 --max-time 60 -o /dev/null -w '%{url_effective}' "$url" 2>/dev/null
+        return $?
+    fi
+    return 1
+}
+
+# resolve_latest_tag: print the current "latest" release tag, or fail with a
+# clear message. Never guesses an older tag and never falls back to a branch.
 #
-# Sets: QYVORA_ARTIFACT, QYVORA_BASE_URL, QYVORA_WANT_PREBUILT (1/0)
-plan_target() {
-    # Validate user input first: the tag is interpolated into a URL, so reject
-    # anything outside a strict charset before doing any other work.
-    local version="${QYVORA_VERSION:-latest}"
-    case "$version" in
-        *[!A-Za-z0-9._-]*|"")
-            die "$EXIT_FATAL" "Invalid release tag: '$version'"
+# The API is tried first (it names the tag explicitly). If it is unreachable or
+# rate-limited, the /releases/latest redirect still identifies the same tag and
+# has no such limit, so it is used as an equivalent fallback -- it resolves the
+# *current* latest, never an older ref.
+resolve_latest_tag() {
+    local tag="" tmp loc
+    tmp="$(mktemp 2>/dev/null || printf '/tmp/qyvora-latest.%s' "$$")"
+    if fetch "https://api.github.com/repos/${QYVORA_REPO}/releases/latest" "$tmp" 2>/dev/null; then
+        tag=$(sed -n 's/.*"tag_name"[[:space:]]*:[[:space:]]*"\([^"]*\)".*/\1/p' "$tmp" | head -1)
+    fi
+    rm -f -- "$tmp"
+
+    if [ -z "$tag" ]; then
+        loc=$(fetch_redirect "https://github.com/${QYVORA_REPO}/releases/latest" 2>/dev/null || true)
+        case "$loc" in
+            */tag/*) tag="${loc##*/tag/}" ;;
+        esac
+    fi
+
+    case "$tag" in
+        ""|*[!A-Za-z0-9._-]*)
+            die "$EXIT_FATAL" "Could not resolve the latest release for ${QYVORA_TITLE}: the GitHub API is unreachable or rate-limited. Pin a release with VERSION=vX.Y.Z and retry."
             ;;
     esac
+    printf '%s' "$tag"
+}
 
-    local os_token arch_token
+# Decide the artifact name for this machine, or explain why we will not.
+#
+# Release assets are named "<tool>_<version>_<os>_<arch>.tar.gz" (zip on
+# windows), where <version> is the release tag without its leading "v". The
+# asset name therefore embeds the tag, so the installer resolves "latest" to a
+# concrete tag first and pins the whole install to it.
+#
+# Sets: QYVORA_ARTIFACT, QYVORA_BASE_URL, QYVORA_WANT_PREBUILT (1/0),
+#       QYVORA_VERSION_RESOLVED
+plan_target() {
+    # Env vars are interpolated into a URL, so validate before any other work.
+    # QYVORA_VERSION is canonical; VERSION is accepted as a documented alias.
+    local version="${QYVORA_VERSION:-${VERSION:-}}"
+
+    if [ -z "$version" ] || [ "$version" = "latest" ]; then
+        version=$(resolve_latest_tag)
+        info "Resolved latest release: $version"
+    else
+        case "$version" in
+            *[!A-Za-z0-9._-]*)
+                die "$EXIT_FATAL" "Invalid release tag: '$version'"
+                ;;
+        esac
+    fi
+    QYVORA_VERSION_RESOLVED="$version"
+
+    local os_token arch_token version_num
     os_token=$(target_os_token)
     arch_token="$QYVORA_ARCH"
+    version_num="${version#v}"
 
     if [ -z "$os_token" ]; then
         unsupported_target "Operating system '$(uname -s 2>/dev/null || echo unknown)' is not a supported QYVORA target."
     fi
 
+    QYVORA_WANT_PREBUILT=1
     case "$QYVORA_ARCH" in
         amd64|arm64)
             : ;;
@@ -420,11 +489,14 @@ plan_target() {
             ;;
     esac
 
-    QYVORA_WANT_PREBUILT=1
-    QYVORA_ARTIFACT="${QYVORA_TOOL}-${os_token}-${arch_token}"
+    # Archive type follows the platform, not a per-tool choice: unix tarballs,
+    # windows zips. The release pipeline publishes exactly these two.
+    local ext=".tar.gz"
     if [ "$os_token" = "windows" ]; then
-        QYVORA_ARTIFACT="${QYVORA_ARTIFACT}.exe"
+        ext=".zip"
     fi
+    QYVORA_PACKAGE="${ext#.}"
+    QYVORA_ARTIFACT="${QYVORA_TOOL}_${version_num}_${os_token}_${arch_token}${ext}"
 
     # Android has its own policy; ordinary Linux has its own.
     if [ "$os_token" = "android" ]; then
@@ -441,11 +513,10 @@ plan_target() {
         fi
     fi
 
-    if [ "$version" = "latest" ]; then
-        QYVORA_BASE_URL="https://github.com/${QYVORA_REPO}/releases/latest/download"
-    else
-        QYVORA_BASE_URL="https://github.com/${QYVORA_REPO}/releases/download/${version}"
-    fi
+    # Pin the URL to the exact resolved tag. "latest" is never used as a path
+    # segment, so a re-run can never silently install a different version than
+    # the one whose tag was resolved and checked here.
+    QYVORA_BASE_URL="https://github.com/${QYVORA_REPO}/releases/download/${QYVORA_VERSION_RESOLVED}"
 }
 
 armv7_policy() {
@@ -819,7 +890,7 @@ cleanup() {
 fetch() {
     local url="$1" out="$2"
     case "$url" in
-        https://github.com/*|https://raw.githubusercontent.com/*|https://*.githubusercontent.com/*|https://codeload.github.com/*|https://objects.githubusercontent.com/*)
+        https://github.com/*|https://api.github.com/*|https://raw.githubusercontent.com/*|https://*.githubusercontent.com/*|https://codeload.github.com/*|https://objects.githubusercontent.com/*)
             : ;;
         *)
             err "Refusing to download from a non-HTTPS GitHub origin: $url"
@@ -949,6 +1020,21 @@ build_from_source() {
         return 1
     fi
 
+    # Resolve the same tag the prebuilt path would have used. A bare `latest`
+    # is resolved here too, so a source build never follows a moving branch and
+    # reports the same version as the matching prebuilt artifact.
+    local tag="${QYVORA_VERSION_RESOLVED:-${QYVORA_VERSION:-${VERSION:-}}}"
+    if [ -z "$tag" ] || [ "$tag" = "latest" ]; then
+        tag=$(resolve_latest_tag)
+        QYVORA_VERSION_RESOLVED="$tag"
+    fi
+    local ver="${tag#v}"
+    local build_date
+    build_date=$(date -u +%Y-%m-%dT%H:%M:%SZ 2>/dev/null || printf 'unknown')
+    # The same ldflags the release pipeline injects, so `--from-source` and the
+    # prebuilt path report the identical build identity.
+    local ldflags="-s -w -X ${QYVORA_VERSION_PKG}.Version=${ver} -X ${QYVORA_VERSION_PKG}.Commit=${tag} -X ${QYVORA_VERSION_PKG}.Date=${build_date} -X ${QYVORA_VERSION_PKG}.BuildUser=source-build"
+
     local gover
     gover=$(go env GOVERSION 2>/dev/null | sed 's/^go//')
     case "$gover" in
@@ -960,26 +1046,14 @@ build_from_source() {
             ;;
     esac
 
-    # Prefer the local checkout, then the release source tarball.
-    if [ -f "${PWD}/go.mod" ]; then
-        info "Building from the local checkout ($PWD)..."
-        if CGO_ENABLED="$QYVORA_CGO_ENABLED" go build -trimpath -ldflags="-s -w" \
-             -o "$WORK_DIR/${QYVORA_TOOL}-src" "$QYVORA_MAIN_PKG" 2>&1; then
-            SOURCE_BUILT="$WORK_DIR/${QYVORA_TOOL}-src"
-            return 0
-        fi
-        warn "Local checkout build failed; trying the release source tarball."
-    fi
-
-    if ! fetch "https://codeload.github.com/${QYVORA_REPO}/tar.gz/refs/heads/main" "$WORK_DIR/src.tar.gz" 2>/dev/null; then
-        if ! fetch "https://codeload.github.com/${QYVORA_REPO}/tar.gz/refs/heads/master" "$WORK_DIR/src.tar.gz" 2>/dev/null; then
-            err "Could not download the source tarball."
-            return 1
-        fi
+    info "Downloading source for tag ${tag}..."
+    if ! fetch "https://codeload.github.com/${QYVORA_REPO}/tar.gz/refs/tags/${tag}" "$WORK_DIR/src.tar.gz" 2>/dev/null; then
+        err "Could not download the source tarball for tag ${tag}."
+        return 1
     fi
     safe_extract "$WORK_DIR/src.tar.gz" "$WORK_DIR/src" || return 1
 
-    # A GitHub source tarball wraps everything in a single "<repo>-<sha>/"
+    # A GitHub source tarball wraps everything in a single "<repo>-<tag>/"
     # directory, so the module root is one level below the extraction target.
     local srcdir="$WORK_DIR/src"
     if [ ! -f "$srcdir/go.mod" ]; then
@@ -991,9 +1065,9 @@ build_from_source() {
         return 1
     fi
 
-    info "Building from source ($srcdir)..."
-    if ! ( cd "$srcdir" && CGO_ENABLED="$QYVORA_CGO_ENABLED" go build -trimpath -ldflags="-s -w" \
-            -o "$WORK_DIR/${QYVORA_TOOL}-src" "$QYVORA_MAIN_PKG" ); then
+    info "Building ${QYVORA_TITLE} ${tag} from source..."
+    if ! ( cd "$srcdir" && CGO_ENABLED="$QYVORA_CGO_ENABLED" go build -trimpath \
+            -ldflags="$ldflags" -o "$WORK_DIR/${QYVORA_TOOL}-src" "$QYVORA_MAIN_PKG" ); then
         err "Source build failed."
         return 1
     fi
@@ -1212,11 +1286,15 @@ do_uninstall() {
 do_install() {
     detect_environment
     compute_install_dir
-    plan_target
 
+    # Report the environment and the destination before resolving the release:
+    # resolving can fail (API unreachable, rate-limited), and the caller still
+    # needs to see which --prefix the installer honoured.
     info "Detected ${QYVORA_OS}/${QYVORA_ARCH}${QYVORA_ENV:+ (${QYVORA_ENV})}"
     [ -n "$QYVORA_DISTRO" ] && info "Distribution: $QYVORA_DISTRO"
     info "Install directory: $QYVORA_INSTALL_DIR"
+
+    plan_target
 
     SOURCE_BUILT=""
     local candidate=""
@@ -1229,14 +1307,19 @@ do_install() {
     if [ "$QYVORA_WANT_PREBUILT" = "1" ]; then
         info "Downloading ${QYVORA_ARTIFACT}..."
         if ! fetch "${QYVORA_BASE_URL}/${QYVORA_ARTIFACT}" "$WORK_DIR/${QYVORA_ARTIFACT}"; then
-            warn "No published artifact named ${QYVORA_ARTIFACT}."
-            if [ "$QYVORA_SOURCE_BUILD" != "1" ]; then
-                err "$QYVORA_TITLE has no release artifact for this target and offers no source build."
-                exit "$EXIT_UNSUPPORTED"
+            # A missing prebuilt is a release defect, not a fallback cue: the
+            # release for this tag is supposed to contain every target. Fail
+            # loudly so the gap is visible, and point at the source path.
+            err "Release ${QYVORA_VERSION_RESOLVED} has no artifact named ${QYVORA_ARTIFACT}."
+            err "The release is incomplete for this platform. Nothing was installed."
+            if [ "$QYVORA_SOURCE_BUILD" = "1" ]; then
+                note "To install this tag from source instead:"
+                note "  VERSION=${QYVORA_VERSION_RESOLVED} bash install.sh --from-source"
             fi
-            warn "Falling back to a local source build."
-        else
-            if ! verify_checksum "$WORK_DIR/${QYVORA_ARTIFACT}" "$QYVORA_ARTIFACT"; then
+            print_diagnostics
+            exit "$EXIT_VERIFY"
+        fi
+        if ! verify_checksum "$WORK_DIR/${QYVORA_ARTIFACT}" "$QYVORA_ARTIFACT"; then
                 exit "$EXIT_VERIFY"
             fi
             candidate="$WORK_DIR/${QYVORA_ARTIFACT}"
@@ -1277,7 +1360,6 @@ do_install() {
                 exit "$EXIT_VERIFY"
             fi
             ok "Artifact executes on this host"
-        fi
     fi
 
     if [ -z "$candidate" ]; then
@@ -1354,11 +1436,47 @@ do_install() {
     install_desktop "$QYVORA_INSTALL_DIR"
     install_man_pages
 
-    # --- Report -----------------------------------------------------------
-    local ver
+    # --- Version check ----------------------------------------------------
+    # The whole point of resolving the latest tag and pinning the URL to it is
+    # that the installed binary must actually report that tag. If it does not,
+    # the install is wrong (stale asset, wrong build) and the caller must see a
+    # non-zero exit rather than a cheerful "success".
+    local ver resolved_num
     ver=$(runtime_version "$dest" 2>/dev/null || printf '')
+    resolved_num="${QYVORA_VERSION_RESOLVED#v}"
+    if [ -n "$ver" ]; then
+        case "$ver" in
+            *"$resolved_num"*) : ;;
+            *)
+                err "Installed binary reports '$ver', but the resolved release is '${QYVORA_VERSION_RESOLVED}'."
+                err "Refusing to report success on a version mismatch."
+                print_diagnostics
+                exit "$EXIT_VERIFY"
+                ;;
+        esac
+    fi
+
+    # --- PATH-shadow warning ----------------------------------------------
+    # Another copy earlier on PATH is how a "fresh install" keeps running an
+    # old binary. Report it explicitly; do not try to fix the user's PATH.
+    if command -v which >/dev/null 2>&1; then
+        local shadow first
+        shadow=$(which -a "$QYVORA_TOOL" 2>/dev/null | awk '!seen[$0]++')
+        if [ -n "$shadow" ]; then
+            first=$(printf '%s\n' "$shadow" | head -1)
+            if [ "$first" != "$dest" ]; then
+                warn "Another '$QYVORA_TOOL' shadows this install and comes first on PATH:"
+                printf '%s\n' "$shadow" | sed 's/^/        /'
+                warn "Your shell will run $first, not $dest. Remove it or move $QYVORA_INSTALL_DIR earlier in PATH."
+            fi
+        fi
+    fi
+
+    # --- Report -----------------------------------------------------------
     printf '\n'
     print_diagnostics
+    printf '  %sSelected release%s\n' "$C_BLD" "$C_OFF"
+    printf '    %s\n' "${QYVORA_VERSION_RESOLVED:-unknown}"
     printf '  %sSelected artifact%s\n' "$C_BLD" "$C_OFF"
     printf '    %s\n' "${QYVORA_ARTIFACT:-<built from source>}"
     printf '\n'

@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"strings"
 
 	"github.com/spf13/cobra"
 
@@ -19,17 +20,21 @@ func shakaUpdateConfig() selfupdate.Config {
 		Repo:           "qyvora-shaka",
 		ToolName:       "shaka",
 		CurrentVersion: version.String,
-		// Release binaries use anansi-style names: macos (not darwin) and a
-		// .exe suffix for windows.
-		ArtifactName: func(goos, goarch string) string {
-			name := fmt.Sprintf("shaka-%s-%s", goos, goarch)
-			if goos == "darwin" {
-				name = fmt.Sprintf("shaka-macos-%s", goarch)
+		// The release pipeline publishes versioned archives
+		// (shaka_<version>_<os>_<arch>.tar.gz, .zip on windows), so the asset
+		// name embeds the tag. GoReleaser strips the leading "v" and names
+		// darwin assets "macos".
+		ArtifactName: func(version, goos, goarch string) string {
+			os := goos
+			if os == "darwin" {
+				os = "macos"
 			}
+			ver := strings.TrimPrefix(strings.TrimPrefix(version, "v"), "V")
+			name := fmt.Sprintf("shaka_%s_%s_%s", ver, os, goarch)
 			if goos == "windows" {
-				name += ".exe"
+				return name + ".zip"
 			}
-			return name
+			return name + ".tar.gz"
 		},
 		ChecksumAsset: func(string) string { return "checksums.txt" },
 	}

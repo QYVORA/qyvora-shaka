@@ -130,7 +130,7 @@ func (u *consoleUI) Prompt(name string) string {
 // NO_COLOR is honoured by this surface too.
 func (u *consoleUI) Banner(tagline string) {
 	fmt.Fprintln(u.w)
-	for _, line := range strings.Split(banner.Art, "\n") {
+	for _, line := range banner.RenderCLI() {
 		if strings.TrimSpace(line) == "" {
 			continue
 		}

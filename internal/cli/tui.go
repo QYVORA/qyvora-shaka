@@ -63,6 +63,7 @@ func runTUI(root *cobra.Command, ctx context.Context) error {
 	code, err := tui.Run(tui.Config{
 		Title:   "QYVORA / SHAKA",
 		Version: version.String(),
+		Banner:  tui.ToolBanner("SHAKA", "Authorized Active Directory security assessment framework"),
 		Runner:  runner,
 		Out:     os.Stdout,
 		// The tool's own progress output is discarded rather than shown: it

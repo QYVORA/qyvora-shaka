@@ -124,8 +124,8 @@ _has_color() {
 }
 
 if _has_color; then
-    C_RED='\033[1;31m'; C_GRN='\033[1;32m'; C_YEL='\033[1;33m'
-    C_CYN='\033[1;36m'; C_DIM='\033[90m'; C_BLD='\033[1m'; C_OFF='\033[0m'
+    C_RED=$'\033[1;31m'; C_GRN=$'\033[1;32m'; C_YEL=$'\033[1;33m'
+    C_CYN=$'\033[1;36m'; C_DIM=$'\033[90m'; C_BLD=$'\033[1m'; C_OFF=$'\033[0m'
 else
     C_RED=''; C_GRN=''; C_YEL=''; C_CYN=''; C_DIM=''; C_BLD=''; C_OFF=''
 fi

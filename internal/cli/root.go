@@ -102,6 +102,7 @@ func ExecuteArgsContext(ctx context.Context, args []string) int {
 		}
 	}
 
+	rootCmd.SetContext(ctx)
 	if err := rootCmd.Execute(); err != nil {
 		var exitErr *errs.ExitError
 		if errors.As(err, &exitErr) {

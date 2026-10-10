@@ -32,17 +32,14 @@
 #   Linux        amd64, arm64, armv7 (aarch64/armv7l per uname -m)
 #   macOS        amd64, arm64
 #   Windows      amd64, arm64          (use install.ps1)
-#   Android      arm64, via Termux     (installs to $PREFIX/bin)
+#   Android      arm64, via Termux     (built from source; no prebuilt)
 #
 # Android / Termux notes:
 #   A Linux/arm64 binary will NOT run on Android. Android's bionic linker only
-#   loads position-independent executables, so this installer downloads a
-#   GOOS=android build and rejects an ELF ET_EXEC artifact outright.
-#   On Termux this installer installs a published prebuilt GOOS=android/arm64
-#   binary into $PREFIX/bin.
-#   A 32-bit Android (arm/armv7) target needs an external (cgo) link against
-#   the Android NDK, so no prebuilt is published; use QYVORA_SOURCE=1 and a
-#   local Go toolchain instead.
+#   loads position-independent executables, so this installer refuses an ELF
+#   ET_EXEC artifact outright.
+#   On Termux this installer builds from source with a local Go toolchain,
+#   because no Android prebuilt can be published for this tool.
 #
 # Usage:
 #   curl -fsSL https://raw.githubusercontent.com/QYVORA/qyvora-shaka/main/install.sh | bash
@@ -72,7 +69,7 @@ QYVORA_MAIN_PKG="./cmd/shaka"
 # How the release publishes: binary (bare executable) | tar.gz | zip
 QYVORA_PACKAGE="tar.gz"
 # Android/Termux policy: prebuilt | source-only | unsupported
-QYVORA_ANDROID="prebuilt"
+QYVORA_ANDROID="source-only"
 # Whether a local source build fallback is offered
 QYVORA_SOURCE_BUILD="1"
 # CGO_ENABLED used for source builds. 0 keeps prebuilt binaries static and

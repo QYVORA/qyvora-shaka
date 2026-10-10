@@ -57,10 +57,10 @@ archives:
     formats:
       - tar.gz
     name_template: >-
-      {{ .ProjectName }}_{{ .Version }}_{{ .Os | replace "darwin" "macos" }}_{{ .Arch }}
+      {{ .ProjectName }}_{{ .Version }}_{{ replace .Os "darwin" "macos" }}_{{ .Arch }}
     format_overrides:
       - goos: windows
-        format: zip
+        formats: [zip]
 
 checksum:
   name_template: "checksums.txt"

@@ -92,7 +92,7 @@ jobs:
             "${TOOL}_${VERSION}_macos_amd64.tar.gz" \
             "${TOOL}_${VERSION}_macos_arm64.tar.gz" \
             "${TOOL}_${VERSION}_windows_amd64.zip" \
-            "${TOOL}_${VERSION}_windows_arm64.zip"
+            "${TOOL}_${VERSION}_windows_arm64.zip" \
             checksums.txt; do
             if ! printf '%s\n' "$ASSETS" | grep -qx "$name"; then
               echo "::error::missing required asset: $name"
@@ -167,7 +167,7 @@ jobs:
             "${TOOL}_${VERSION}_macos_amd64.tar.gz" \
             "${TOOL}_${VERSION}_macos_arm64.tar.gz" \
             "${TOOL}_${VERSION}_windows_amd64.zip" \
-            "${TOOL}_${VERSION}_windows_arm64.zip"
+            "${TOOL}_${VERSION}_windows_arm64.zip" \
             checksums.txt; do
             if ! printf '%s\n' "$ASSETS" | grep -qx "$name"; then
               echo "::error::missing asset: $name"

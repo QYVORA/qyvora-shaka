@@ -190,14 +190,19 @@ jobs:
           grep "${TOOL}_${VERSION}_linux_amd64.tar.gz" checksums.txt | sha256sum -c -
           tar xzf "${TOOL}_${VERSION}_linux_amd64.tar.gz"
           chmod +x "$TOOL"
-          INSTALLED=$("./$TOOL" --version 2>/dev/null | head -1 | tr -d '\r\n')
-          # The exact --version line differs per tool ("1.1.0" vs "tool 1.1.0"),
-          # so require the version to appear rather than matching the whole line.
-          case "$INSTALLED" in
-            *"$VERSION"*) ;;
-            *)
-              echo "::error::installed --version is '$INSTALLED', expected to contain '$VERSION' (tag $TAG)"
-              exit 1
-              ;;
-          esac
+          # The version invocation differs per tool: most accept `--version`,
+          # toha3ee only the `version` subcommand. Walk the tool's declared
+          # probe list and accept the first that prints the tag's version.
+          probes="--version version --help"
+          INSTALLED=""
+          for probe in $probes; do
+            out=$("./$TOOL" "$probe" 2>/dev/null | head -1 | tr -d '\r\n') || true
+            case "$out" in
+              *"$VERSION"*) INSTALLED="$out"; break ;;
+            esac
+          done
+          if [ -z "$INSTALLED" ]; then
+            echo "::error::$TOOL did not report version $VERSION via any probe: $probes"
+            exit 1
+          fi
           echo "linux/amd64 artifact verified: $INSTALLED"

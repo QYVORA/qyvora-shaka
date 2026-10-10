@@ -40,6 +40,13 @@ $MinGo      = '1.26'
 $IconAsset  = 'shaka.png'
 $IcoAsset   = 'shaka.ico'
 $AppComment = 'Active Directory and identity attack analysis'
+# The OS/architecture tokens this tool actually publishes prebuilt archives
+# for. A tool that cannot cross-compile (linux-only transports, or cgo that
+# must link on the release runner) declares a subset here, so this installer
+# never advertises an asset the release does not contain. Windows is the only
+# OS this script targets.
+$SupportedOs      = 'linux macos windows'
+$SupportedMachines = 'amd64 arm64'
 # === end metadata ===
 
 $InstallerVersion = '2'
@@ -254,6 +261,29 @@ if ($arch -eq 'unsupported') {
 }
 if ($arch -eq 'i386') {
     Stop-With $ExitUnsupported '32-bit (x86) Windows builds are not published. Use 64-bit Windows.'
+}
+
+# Honest refusal before any network I/O: this tool publishes no Windows
+# prebuilt at all (mansa and toha3ee are linux-only). Offer the source path
+# when the tool supports it; otherwise stop cleanly.
+if ($SupportedOs.Split(' ') -notcontains 'windows') {
+    if ($SourceBuild -eq '1') {
+        Write-Warn "$ToolTitle publishes no Windows prebuilt; falling back to a local source build."
+        $FromSource = $true
+    } else {
+        Stop-With $ExitUnsupported "$ToolTitle publishes no Windows prebuilt. Supported platforms: $SupportedOs."
+    }
+}
+
+# Arch-level version of the same gate: a cgo tool links on the release runner
+# only, so it ships amd64 alone; an arm64 Windows host gets the source path.
+if ($SupportedMachines.Split(' ') -notcontains $arch) {
+    if ($SourceBuild -eq '1') {
+        Write-Warn "$ToolTitle publishes no windows/$arch prebuilt; falling back to a local source build."
+        $FromSource = $true
+    } else {
+        Stop-With $ExitUnsupported "$ToolTitle publishes no windows/$arch prebuilt. Supported machines: $SupportedMachines."
+    }
 }
 
 $installDir = Get-InstallDir

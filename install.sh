@@ -97,6 +97,10 @@ QYVORA_VERSION_PKG="github.com/QYVORA/qyvora-shaka/internal/version"
 # that does not exist.
 QYVORA_SUPPORTED_OS="linux macos windows"
 QYVORA_SUPPORTED_OS_TEXT="linux, macos, windows"
+# The CPU architectures the release publishes prebuilt archives for (amd64,
+# arm64). Pure-Go tools ship both; a cgo tool that must link on the release
+# runner's own architecture ships the runner's arch only (amd64).
+QYVORA_SUPPORTED_MACHINES="amd64 arm64"
 
 # Planning state. These are safe defaults so that the dependency check in main()
 # can read them before plan_target() runs under `set -u`; plan_target() is what
@@ -527,6 +531,23 @@ plan_target() {
             *" $os_token "*) : ;;
             *)
                 unsupported_target "$os_token prebuilt binaries are not published for ${QYVORA_TITLE}; prebuilt platforms are: ${QYVORA_SUPPORTED_OS_TEXT}. Build from source if your platform can."
+                ;;
+        esac
+    fi
+
+    # Same gate one axis down: a tool whose release ships amd64 only (cgo tools
+    # linked on the release runner) still has source build as a real answer.
+    if [ "$QYVORA_WANT_PREBUILT" = "1" ] && [ -n "$arch_token" ]; then
+        case " $QYVORA_SUPPORTED_MACHINES " in
+            *" $arch_token "*) : ;;
+            *)
+                if [ "$QYVORA_SOURCE_BUILD" = "1" ]; then
+                    QYVORA_WANT_PREBUILT=0
+                    QYVORA_ARTIFACT=""
+                    warn "No published prebuilt for ${os_token}/${arch_token}; falling back to a local source build."
+                else
+                    unsupported_target "No ${os_token}/${arch_token} prebuilt is published for ${QYVORA_TITLE}."
+                fi
                 ;;
         esac
     fi

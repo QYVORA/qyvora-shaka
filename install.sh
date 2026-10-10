@@ -90,6 +90,13 @@ QYVORA_MAN_PAGES="0"
 # Import path of the package holding the Version/Commit/Date vars, for source
 # builds. Must be the full module path; `-X` silently ignores anything else.
 QYVORA_VERSION_PKG="github.com/QYVORA/qyvora-shaka/internal/version"
+# The installer tokens (linux, macos, windows, android) this tool publishes
+# prebuilt archives for, plus a human-readable rendering used in refusal
+# messages. A tool that cannot cross-compile (mansa linux-only transports,
+# toha3ee libpcap cgo) sets a subset, so install.sh never fetches an asset
+# that does not exist.
+QYVORA_SUPPORTED_OS="linux macos windows"
+QYVORA_SUPPORTED_OS_TEXT="linux, macos, windows"
 
 # Planning state. These are safe defaults so that the dependency check in main()
 # can read them before plan_target() runs under `set -u`; plan_target() is what
@@ -508,6 +515,20 @@ plan_target() {
             QYVORA_WANT_PREBUILT=0
             QYVORA_ARTIFACT=""
         fi
+    fi
+
+    # Some tools publish only a subset of the ecosystem matrix. If this
+    # machine's OS is not among the published ones, refuse honestly instead of
+    # fetching a 404. Android was already handled above, where a source-build
+    # fallback is still meaningful; on a mac/windows machine a source build of
+    # a linux-only tool cannot succeed either, so there is no fallback to offer.
+    if [ "$QYVORA_WANT_PREBUILT" = "1" ] && [ -n "$os_token" ]; then
+        case " $QYVORA_SUPPORTED_OS " in
+            *" $os_token "*) : ;;
+            *)
+                unsupported_target "$os_token prebuilt binaries are not published for ${QYVORA_TITLE}; prebuilt platforms are: ${QYVORA_SUPPORTED_OS_TEXT}. Build from source if your platform can."
+                ;;
+        esac
     fi
 
     # Pin the URL to the exact resolved tag. "latest" is never used as a path

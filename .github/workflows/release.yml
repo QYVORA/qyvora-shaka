@@ -5,16 +5,18 @@ name: release
 #
 # Publishing rules this workflow enforces:
 #   1. Assets are named "{tool}_{version}_{os}_{arch}.tar.gz" (zip on windows),
-#      where version is the tag without its leading "v". install.sh derives the
-#      same names from the resolved latest tag, and "darwin" is never used in
-#      place of "macos".
+#      where version is the tag without its leading "v" and darwin is published
+#      as "macos". install.sh derives the same names from the resolved latest
+#      tag. The exact set a tool must ship comes from its Q_OS policy in
+#      tools.def, so a tool that can only build for linux never promises a
+#      darwin or windows asset.
 #   2. The release is created as a DRAFT by GoReleaser. It is published only
 #      after every required asset is present, so "latest" never points at a
 #      release that is missing a platform.
 #   3. If anything fails before publishing, the draft is deleted so the previous
 #      good release stays "latest".
 #   4. A post-publish job re-checks the published release independently: that
-#      /releases/latest is this tag, that all six platform assets plus
+#      /releases/latest is this tag, that all required platform assets plus
 #      checksums.txt exist, and that the linux/amd64 artifact passes its
 #      checksum and reports the tag from `--version`.
 #
@@ -53,6 +55,14 @@ jobs:
         with:
           go-version-file: go.mod
 
+      - name: Install cross-compilation build dependencies
+        # Only tools with  != '' (i.e. cgo tools like toha3ee
+        # binding libpcap) need these; the step is skipped everywhere else.
+        if: ${{ '' != '' }}
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends ca-certificates
+
       - name: Run GoReleaser (creates a draft release)
         uses: goreleaser/goreleaser-action@286f3b13b1b49da4ac219696163fb8c1c93e1200 # v6.0.0
         with:
@@ -82,7 +92,7 @@ jobs:
             "${TOOL}_${VERSION}_macos_amd64.tar.gz" \
             "${TOOL}_${VERSION}_macos_arm64.tar.gz" \
             "${TOOL}_${VERSION}_windows_amd64.zip" \
-            "${TOOL}_${VERSION}_windows_arm64.zip" \
+            "${TOOL}_${VERSION}_windows_arm64.zip"
             checksums.txt; do
             if ! printf '%s\n' "$ASSETS" | grep -qx "$name"; then
               echo "::error::missing required asset: $name"
@@ -157,7 +167,7 @@ jobs:
             "${TOOL}_${VERSION}_macos_amd64.tar.gz" \
             "${TOOL}_${VERSION}_macos_arm64.tar.gz" \
             "${TOOL}_${VERSION}_windows_amd64.zip" \
-            "${TOOL}_${VERSION}_windows_arm64.zip" \
+            "${TOOL}_${VERSION}_windows_arm64.zip"
             checksums.txt; do
             if ! printf '%s\n' "$ASSETS" | grep -qx "$name"; then
               echo "::error::missing asset: $name"

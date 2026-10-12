@@ -7,6 +7,7 @@ import (
 	"strings"
 
 	"github.com/QYVORA/qyvora-shaka/internal/banner"
+	"github.com/QYVORA/qyvora-tui"
 )
 
 // ANSI style codes.
@@ -129,6 +130,9 @@ func (u *consoleUI) Prompt(name string) string {
 // are off the plain art is printed even on a terminal that could show it, so
 // NO_COLOR is honoured by this surface too.
 func (u *consoleUI) Banner(tagline string) {
+	if tui.InTUISession() {
+		return
+	}
 	fmt.Fprintln(u.w)
 	for _, line := range banner.RenderCLI() {
 		if strings.TrimSpace(line) == "" {
@@ -148,6 +152,9 @@ func (u *consoleUI) Banner(tagline string) {
 }
 
 func (u *consoleUI) BannerFoot(ver string) {
+	if tui.InTUISession() {
+		return
+	}
 	u.Status(">", "v %s", ver)
 	fmt.Fprintln(u.w, u.DimWhite("  type 'help' for commands, 'exit' to leave."))
 	fmt.Fprintln(u.w)

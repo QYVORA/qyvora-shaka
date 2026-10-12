@@ -83,7 +83,12 @@ func RenderCLI() []string {
 	return tui.RenderCLIArt(strings.Split(Art, "\n"), tui.TerminalWidth(), Name, Tagline)
 }
 
-// Print writes Render to stdout.
+// Print writes Render to stdout. It is suppressed while the shared TUI is
+// executing the tool, where the console's header band already carries the
+// identity and printing again would duplicate it.
 func Print() {
+	if tui.InTUISession() {
+		return
+	}
 	_, _ = os.Stdout.WriteString(Render())
 }

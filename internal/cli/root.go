@@ -1,5 +1,5 @@
-// Package cli implements the shaka command-line interface. The same binary is
-// also the interactive console. The package wires configuration, logging,
+// Package cli implements the shaka command-line interface, a one-shot CLI.
+// The package wires configuration, logging,
 // output formatting, the target manager and the assessment pipeline together
 // and exposes the discovery/enumeration/analysis/reporting commands.
 package cli
@@ -32,7 +32,7 @@ security assessment: discover, enumerate, correlate relationships, analyze
 configurations, and produce evidence-driven reports.
 
 Usage modes:
-  shaka                                start the interactive console
+  shaka                                print this help (one-shot CLI)
   shaka assess --sim                   full pipeline against the offline demo directory
   shaka assess --endpoint dc:389 ...   full pipeline against a live authorized directory
   shaka discover                       discover domains and domain controllers

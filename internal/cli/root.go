@@ -31,17 +31,11 @@ const appDescription = `shaka is a terminal-first CLI for authorized Microsoft A
 security assessment: discover, enumerate, correlate relationships, analyze
 configurations, and produce evidence-driven reports.
 
-Usage modes:
-  shaka                                print this help (one-shot CLI)
-  shaka assess --sim                   full pipeline against the offline demo directory
-  shaka assess --endpoint dc:389 ...   full pipeline against a live authorized directory
-  shaka discover                       discover domains and domain controllers
-  shaka enumerate users|groups|...     enumerate directory objects
-  shaka analyze                        run the rule engine against the current session
-  shaka findings                       list findings from the latest session
-  shaka report                         render the latest assessment report
-  shaka target set|list|show           manage targets
-  shaka updates                        check for and install updates
+Commands follow the shared tier grammar
+<tool> <tier> <module> [<action>] [target] [flags], where the tier is one of
+recon, exploit, or report. Run it with no arguments to print this help;
+assessment is one-shot, e.g. shaka recon assess --sim,
+shaka recon enumerate users, shaka report findings.
 
 Every assessment requires explicit target authorization. shaka is scoped,
 reversible, logged, and intended for use only on systems you are authorized
@@ -54,6 +48,12 @@ var rootCmd = &cobra.Command{
 	Version:       version.String(),
 	SilenceUsage:  true,
 	SilenceErrors: true,
+	Example: `  shaka recon assess --sim
+  shaka recon discover
+  shaka recon enumerate users
+  shaka recon analyze
+  shaka report findings
+  shaka report --format markdown`,
 	PersistentPreRunE: func(_ *cobra.Command, _ []string) error {
 		if app.initErr != nil {
 			return errs.NewExitError(2, app.initErr.Error())
@@ -151,22 +151,71 @@ func init() {
 
 	registerDirFlags(rootCmd.PersistentFlags())
 
-	rootCmd.AddCommand(newVersionCmd())
-	rootCmd.AddCommand(newCapabilitiesCmd())
-	rootCmd.AddCommand(newCompletionCmd())
-	rootCmd.AddCommand(newUpdatesCmd())
-	rootCmd.AddCommand(newTargetCmd())
-	rootCmd.AddCommand(newAssessCmd())
-	rootCmd.AddCommand(newDiscoverCmd())
-	rootCmd.AddCommand(newEnumerateCmd())
-	rootCmd.AddCommand(newAnalyzeCmd())
-	rootCmd.AddCommand(newFindingsCmd())
-	rootCmd.AddCommand(newEvidenceCmd())
-	rootCmd.AddCommand(newGraphCmd())
-	rootCmd.AddCommand(newReportCmd())
-	rootCmd.AddCommand(newToolsCmd())
+	// Flat utility commands, identical in shape across all 14 tools.
+	rootCmd.AddCommand(newVersionCmd(), newCapabilitiesCmd(), newCompletionCmd(), newUpdatesCmd())
+
+	// Tier grammar: <tool> <tier> <module> [<action>] [target] [flags]. shaka's
+	// discovery, enumeration, tool-inventory and rule-analysis work is
+	// recon-tier; it assesses a directory read-only and never writes to the
+	// target, so the exploit tier is an explicit empty note; findings, evidence,
+	// relationships and the report render surface are report-tier. The tier
+	// parents always exist so the command shape is uniform across tools.
+	recon := &cobra.Command{
+		Use:   "recon",
+		Short: "Discovery, enumeration, tool inventory and analysis modules",
+	}
+	recon.AddCommand(
+		newAssessCmd(),
+		newDiscoverCmd(),
+		newEnumerateCmd(),
+		newAnalyzeCmd(),
+		newTargetCmd(),
+		newToolsCmd(),
+	)
+
+	exploit := &cobra.Command{
+		Use:   "exploit",
+		Short: "Active-testing and exploitation modules",
+		RunE: func(*cobra.Command, []string) error {
+			return errs.NewExitError(2, "the exploit tier is empty: shaka assesses a directory read-only and never writes to the target")
+		},
+	}
+
+	report := newReportCmd()
+	report.Short = "Render reports and inspect findings, evidence and relationships"
+	report.AddCommand(newFindingsCmd(), newEvidenceCmd(), newGraphCmd())
+
+	rootCmd.AddCommand(recon, exploit, report)
+
+	// Backward-compatible top-level aliases: the tier form is the supported
+	// grammar, but every pre-tier invocation keeps resolving as a hidden
+	// command so existing scripts are not broken. `report` is itself a tier
+	// name, so its pre-tier form is handled by the tier. Cobra does not suggest
+	// hidden commands, so help stays clean.
+	rootCmd.AddCommand(
+		hiddenAlias("assess", newAssessCmd()),
+		hiddenAlias("discover", newDiscoverCmd()),
+		hiddenAlias("enumerate", newEnumerateCmd()),
+		hiddenAlias("analyze", newAnalyzeCmd()),
+		hiddenAlias("target", newTargetCmd()),
+		hiddenAlias("tools", newToolsCmd()),
+		hiddenAlias("findings", newFindingsCmd()),
+		hiddenAlias("evidence", newEvidenceCmd()),
+		hiddenAlias("graph", newGraphCmd()),
+	)
 
 	rootCmd.SetVersionTemplate(fmt.Sprintf("shaka %s\n", version.String()))
+}
+
+// hiddenAlias registers a command under its bare name, hidden from help, so
+// the pre-tier invocation form keeps resolving. The trailing usage breadcrumb
+// (e.g. "enumerate [users|...]") is preserved.
+func hiddenAlias(name string, cmd *cobra.Command) *cobra.Command {
+	if old := cmd.Name(); name != old {
+		cmd.Use = name + cmd.Use[len(old):]
+	}
+	cmd.Hidden = true
+	return cmd
 }
 
 // initConfig loads configuration and initializes the shared logger, printer,

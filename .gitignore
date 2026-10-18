@@ -26,3 +26,6 @@ config.local.*
 # Test artifacts
 *.out
 coverage.*
+
+# Script engine output
+shaka-report.json

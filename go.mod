@@ -3,6 +3,7 @@ module github.com/QYVORA/qyvora-shaka
 go 1.26.5
 
 require (
+	github.com/QYVORA/qyvora-script v0.1.0
 	github.com/QYVORA/qyvora-tui v0.11.0
 	github.com/fatih/color v1.19.0
 	github.com/muesli/termenv v0.16.0
@@ -47,3 +48,5 @@ require (
 	golang.org/x/sys v0.42.0 // indirect
 	golang.org/x/text v0.28.0 // indirect
 )
+
+replace github.com/QYVORA/qyvora-script => ../../shared/qyvora-script

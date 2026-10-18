@@ -1,5 +1,5 @@
-github.com/QYVORA/qyvora-tui v0.10.0 h1:twAZsjUiUjcstITsptul7hS+G4W13hM7Tnij7lCOQSw=
-github.com/QYVORA/qyvora-tui v0.10.0/go.mod h1:/wTNo2LIrfwjmMgAC5SQeLEh0w56nQnz1kq7JLnlXYg=
+github.com/QYVORA/qyvora-script v0.1.0 h1:kEGyKlGXsv6/2bVn6NNmdu0DJK6HZB0DD2thl/O34IA=
+github.com/QYVORA/qyvora-script v0.1.0/go.mod h1:6UZvxwe7XSCNdrdU6mcv2Y2YkOKo0sIXP+VcpzAnKhA=
 github.com/QYVORA/qyvora-tui v0.11.0 h1:kk4XNTRSlPUd1p2sJ7R1FeEIDOEYzmJwZ2oTK4pfoCI=
 github.com/QYVORA/qyvora-tui v0.11.0/go.mod h1:/wTNo2LIrfwjmMgAC5SQeLEh0w56nQnz1kq7JLnlXYg=
 github.com/atotto/clipboard v0.1.4 h1:EH0zSVneZPSuFR11BlR9YppQTVDbh5+16AmcJi4g1z4=

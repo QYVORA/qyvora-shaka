@@ -68,4 +68,4 @@ _No report-tier modules._
 | `shaka target` | Manage assessment targets |
 | `shaka tools` | List shaka's AI-ready tool capabilities |
 | `shaka tui` | start the interactive terminal application |
-
+| `docs script <file>` | Run a `.qs` script with the shared scripting engine (`run`/`build` subcommands) |

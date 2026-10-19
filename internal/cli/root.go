@@ -15,6 +15,7 @@ import (
 	"github.com/fatih/color"
 	"github.com/spf13/cobra"
 
+	"github.com/QYVORA/qyvora-shaka/internal/banner"
 	"github.com/QYVORA/qyvora-shaka/internal/config"
 	errs "github.com/QYVORA/qyvora-shaka/internal/errors"
 	"github.com/QYVORA/qyvora-shaka/internal/logger"
@@ -45,7 +46,7 @@ to assess.`
 var rootCmd = &cobra.Command{
 	Use:           "shaka",
 	Short:         "Authorized Active Directory security assessment framework",
-	Long:          appDescription,
+	Long:          banner.Render() + "\n\n  " + banner.Tagline + " — " + version.CompanyName + "\n  " + version.CompanyURL + "\n  Built in " + version.CompanyCity + "\n\n" + appDescription,
 	Version:       version.String(),
 	SilenceUsage:  true,
 	SilenceErrors: true,

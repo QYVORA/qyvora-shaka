@@ -9,16 +9,13 @@
 package events
 
 import (
-	"crypto/rand"
-	"encoding/hex"
-	"encoding/json"
 	"io"
-	"sync"
-	"time"
+
+	shared "github.com/QYVORA/qyvora-events"
 )
 
 // SchemaVersion is the event schema version every emitted event carries.
-const SchemaVersion = "1.0"
+const SchemaVersion = shared.SchemaVersion
 
 // Shared verbs use the ecosystem spelling exactly; shaka adds directory-
 // and assessment-specific verbs with a "category.thing.state" shape so
@@ -50,77 +47,13 @@ const (
 
 // Level values for the envelope's level field.
 const (
-	LevelInfo    = "info"
-	LevelWarning = "warning"
-	LevelError   = "error"
+	LevelInfo    = shared.LevelInfo
+	LevelWarning = shared.LevelWarning
+	LevelError   = shared.LevelError
 )
 
-// Event is the wire shape of one event line.
-type Event struct {
-	SchemaVersion string         `json:"schema_version"`
-	Timestamp     time.Time      `json:"timestamp"`
-	ExecutionID   string         `json:"execution_id"`
-	Framework     string         `json:"framework"`
-	Level         string         `json:"level"`
-	Event         string         `json:"event"`
-	Data          map[string]any `json:"data,omitempty"`
-}
+type Event = shared.Event
+type Stream = shared.Stream
 
-// Stream writes events as JSONL to w. It is safe for concurrent use.
-type Stream struct {
-	mu          sync.Mutex
-	w           io.Writer
-	executionID string
-}
-
-// NewStream returns a stream bound to a freshly generated execution id.
-func NewStream(w io.Writer) *Stream {
-	return &Stream{w: w, executionID: newExecutionID()}
-}
-
-// ExecutionID returns the execution id bound to this stream.
-func (s *Stream) ExecutionID() string {
-	if s == nil {
-		return ""
-	}
-	return s.executionID
-}
-
-// Emit writes one event. Data may be nil.
-func (s *Stream) Emit(level, name string, data map[string]any) {
-	if s == nil || s.w == nil {
-		return
-	}
-	s.mu.Lock()
-	defer s.mu.Unlock()
-	ev := Event{
-		SchemaVersion: SchemaVersion,
-		Timestamp:     time.Now().UTC(),
-		ExecutionID:   s.executionID,
-		Framework:     "shaka",
-		Level:         level,
-		Event:         name,
-		Data:          data,
-	}
-	enc := json.NewEncoder(s.w)
-	if err := enc.Encode(ev); err != nil {
-		return // stream closed or unwritable; nothing sensible left to do
-	}
-}
-
-// Info emits an informational event.
-func (s *Stream) Info(name string, data map[string]any) { s.Emit(LevelInfo, name, data) }
-
-// Warn emits a warning event.
-func (s *Stream) Warn(name string, data map[string]any) { s.Emit(LevelWarning, name, data) }
-
-// Fail emits an error event.
-func (s *Stream) Fail(name string, data map[string]any) { s.Emit(LevelError, name, data) }
-
-func newExecutionID() string {
-	var b [16]byte
-	if _, err := rand.Read(b[:]); err != nil {
-		return "shaka-" + time.Now().UTC().Format("20060102T150405.000000000")
-	}
-	return hex.EncodeToString(b[:])
-}
+// NewStream returns a stream bound to shaka.
+func NewStream(w io.Writer) *Stream { return shared.NewStream(w, "shaka") }

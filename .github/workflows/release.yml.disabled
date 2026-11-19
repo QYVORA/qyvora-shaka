@@ -27,9 +27,7 @@ permissions:
   contents: read
 
 on:
-  push:
-    tags:
-      - 'v*'
+  workflow_dispatch:
 
 concurrency:
   group: release-${{ github.ref }}

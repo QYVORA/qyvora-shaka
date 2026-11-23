@@ -192,6 +192,14 @@ function Test-Executable {
     return $true
 }
 
+function Test-SafeArchiveTree {
+    param([string]$Path)
+    $bad = Get-ChildItem -LiteralPath $Path -Recurse -Force -ErrorAction Stop |
+        Where-Object { ($_.Attributes -band [System.IO.FileAttributes]::ReparsePoint) -ne 0 }
+    if ($bad) { return $false }
+    return $true
+}
+
 function Test-Runs {
     param([string]$Path)
     try {
@@ -325,8 +333,14 @@ try {
         }
         $unpack = Join-Path $work 'unpack'
         Expand-Archive -LiteralPath $downloaded -DestinationPath $unpack -Force
-        $exe = Get-ChildItem -LiteralPath $unpack -Recurse -Filter "$Tool*.exe" | Select-Object -First 1
+        if (-not (Test-SafeArchiveTree $unpack)) {
+            Stop-With $ExitVerify 'Archive contains a reparse point; refusing to install.'
+        }
+        $exe = Get-ChildItem -LiteralPath $unpack -Recurse -File -Filter "$Tool*.exe" | Select-Object -First 1
         if (-not $exe) { Stop-With $ExitVerify "Archive did not contain a $Tool executable." }
+        if (($exe.Attributes -band [System.IO.FileAttributes]::ReparsePoint) -ne 0) {
+            Stop-With $ExitVerify 'Archive executable is a reparse point; refusing to install.'
+        }
         $downloaded = $exe.FullName
         if (-not (Test-Executable $downloaded $arch)) {
             Stop-With $ExitVerify "Artifact $artifact is not compatible with windows/$arch. Nothing was installed."
@@ -350,8 +364,14 @@ try {
         }
         $srcRoot = Join-Path $work 'src'
         Expand-Archive -LiteralPath $tar -DestinationPath $srcRoot -Force
+        if (-not (Test-SafeArchiveTree $srcRoot)) {
+            Stop-With $ExitFatal 'Source archive contains a reparse point; refusing to build.'
+        }
         $srcDir = Get-ChildItem -LiteralPath $srcRoot -Directory | Select-Object -First 1
         if (-not $srcDir) { Stop-With $ExitFatal 'Source archive did not unpack as expected.' }
+        if (($srcDir.Attributes -band [System.IO.FileAttributes]::ReparsePoint) -ne 0) {
+            Stop-With $ExitFatal 'Source archive root is a reparse point; refusing to build.'
+        }
         $date = (Get-Date).ToUniversalTime().ToString('yyyy-MM-ddTHH:mm:ssZ')
         $ld = "-s -w -X $VersionPkg.Version=$resolvedVer -X $VersionPkg.Commit=$resolvedTag -X $VersionPkg.Date=$date -X $VersionPkg.BuildUser=source-build"
         Write-Info "Building from source at $resolvedTag..."

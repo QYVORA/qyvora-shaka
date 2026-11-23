@@ -73,8 +73,8 @@ DISCOVER → VERIFY → DEEPEN → CORRELATE → ANALYZE → REPORT
 ## Status
 
 **Foundation.** The core pipeline, offline simulator, rule engine,
-evidence and risk systems, reporting, CLI and interactive console, safety
-model, and verified self-update are implemented and tested. See
+evidence and risk systems, reporting, CLI, safety model, and verified
+self-update are implemented and tested. See
 [Roadmap](docs/Roadmap.md) for what is planned (deeper live LDAP features,
 Kerberos/SMB protocol analysis, more rules, ecosystem integration).
 
@@ -102,9 +102,10 @@ Kerberos/SMB protocol analysis, more rules, ecosystem integration).
   run/stage/finding feed (stdout, stderr, or file) for automation.
 - **Authorization gate** — explicit per-target confirmation, non-interactive
   mode, and refusal in any ambiguous context.
-- **Interactive console** — running bare `shaka` drops into a
-  Metasploit-style REPL on a real terminal (piped/redirected stdin uses a
-  plain line reader); every one-shot command is available in either mode.
+- **Interactive console** — retired and unavailable in this release; the
+  per-tool TUI is excluded from builds (`//go:build ignore`) pending the
+  redirect of qyvora-tui to the future AI orchestration layer. A bare
+  `shaka` invocation prints CLI usage.
 - **Machine-readable capabilities** — `shaka capabilities` / `shaka tools`
   exposes an AI-ready tool catalog with risk and authorization metadata.
 
@@ -161,9 +162,6 @@ untouched. No Go toolchain or Git is required.
 ## Quick start
 
 ```sh
-# Interactive console (Metasploit-style REPL, real terminal only)
-shaka
-
 # Offline demo assessment (no live directory, auto-authorized)
 shaka assess --sim
 
@@ -180,17 +178,6 @@ expected findings across 15 rules (privileged and nested membership,
 delegation postures on users and computers, credential hygiene, SID history,
 LAPS, GPO links and password policy) — a deterministic walk-through of
 the whole pipeline.
-
-Inside the console you get the banner, a prompt, and every one-shot command:
-
-```text
-shaka> assess
-shaka> findings
-shaka> graph
-shaka> report
-shaka> help
-shaka> exit
-```
 
 ## Documentation
 
@@ -216,7 +203,7 @@ shaka> exit
 ```
 cmd/shaka/             executable entry point; calls cli.Execute()
 internal/cli/          cobra command tree, appState, authorization gate,
-                       console REPL, rendering, version/updates
+                       rendering, version/updates
 internal/core/         pipeline stage contracts (Stage, Env)
 internal/orchestration/ pipeline + profiles
 internal/config/       viper-based config (QYVORA_SHAKA_* environment namespace)
@@ -234,7 +221,7 @@ internal/analysis/     identity, trust, Kerberos and attack-path analysis
 internal/rules/        rule engine; internal/rules/builtin/ built-in rules
 internal/evidence/     evidence store (hashing, dedup)
 internal/risk/         severity/confidence/exposure scoring
-internal/assess/       Runner/Options (Full(), stage toggles) reused by CLI + console
+internal/assess/       Runner/Options (Full(), stage toggles) reused by the CLI
 internal/pipeline/     stage wiring (build.go seeds the graph), rules/risk wiring
 internal/reporting/    report renderers: terminal, json, markdown, html, yaml
 internal/output/       output formatting

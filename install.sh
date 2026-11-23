@@ -42,14 +42,12 @@
 #   because no Android prebuilt can be published for this tool.
 #
 # Usage:
-#   curl -fsSL https://raw.githubusercontent.com/QYVORA/qyvora-shaka/main/install.sh | bash
-#   bash install.sh
+#   download install.sh, read it, then run: bash ./install.sh
 #
 # Environment overrides (all optional):
 #   QYVORA_INSTALL_DIR   override the install directory
 #   QYVORA_VERSION       install a specific release tag instead of latest
 #   VERSION              alias for QYVORA_VERSION (e.g. VERSION=v1.2.3)
-#   QYVORA_ALLOW_UNVERIFIED=1  proceed without a checksum match (never recommended)
 #   QYVORA_NO_DESKTOP=1  skip desktop icon / .desktop integration
 #   QYVORA_NO_PATH=1     do not add the install directory to PATH
 #   QYVORA_SOURCE=1      force a local source build, ignore prebuilt artifacts
@@ -615,6 +613,24 @@ print_diagnostics() {
 # ---------------------------------------------------------------------------
 elf_byte() { od -An -tu1 -j"$1" -N1 "$2" 2>/dev/null | awk '{print $1}'; }
 
+u32_at() {
+    local b0 b1 b2 b3
+    b0=$(elf_byte "$2" "$1")
+    b1=$(elf_byte "$(( $2 + 1 ))" "$1")
+    b2=$(elf_byte "$(( $2 + 2 ))" "$1")
+    b3=$(elf_byte "$(( $2 + 3 ))" "$1")
+    [ -n "$b0" ] && [ -n "$b1" ] && [ -n "$b2" ] && [ -n "$b3" ] || return 1
+    case "$3" in
+        little)
+            awk -v a="$b0" -v b="$b1" -v c="$b2" -v d="$b3" \
+                'BEGIN { print a + b * 256 + c * 65536 + d * 16777216 }' ;;
+        big)
+            awk -v a="$b0" -v b="$b1" -v c="$b2" -v d="$b3" \
+                'BEGIN { print a * 16777216 + b * 65536 + c * 256 + d }' ;;
+        *) return 1 ;;
+    esac
+}
+
 validate_executable() {
     local path="$1"
     local expect_os="$2" expect_arch="$3"
@@ -676,21 +692,62 @@ validate_executable() {
     # ---------------------------------------------------------------
     # Mach-O (macOS)
     # ---------------------------------------------------------------
-    if [ "$magic0" = "207 250 186 190" ] || [ "$magic0" = "190 186 250 207" ]; then
-        case "$expect_arch" in
-            arm64) want_machine=0x0100000c ;;
-            amd64) want_machine=0x01000007 ;;
-            *) return 0 ;;
-        esac
-        local cputype
-        cputype=$(od -An -tx1 -j4 -N4 "$path" | awk '{print $1$2$3$4}')
-        if [ "$cputype" != "0100000c" ] && [ "$cputype" != "01000007" ]; then
-            err "Mach-O CPU type mismatch: artifact=$cputype."
-            return 1
-        fi
-        ok "Mach-O, cputype=0x$cputype"
-        return 0
-    fi
+    case "$magic0" in
+        '206 250 237 254'|'207 250 237 254'|'254 237 250 206'|'254 237 250 207'|'202 254 186 190'|'190 186 254 202')
+            case "$expect_arch" in
+                arm64) want_machine=16777228 ;;
+                amd64) want_machine=16777223 ;;
+                *) return 0 ;;
+            esac
+            local mach_endian fat_endian nfat i off cputype matched
+            case "$magic0" in
+                '206 250 237 254'|'207 250 237 254') mach_endian=little ;;
+                '254 237 250 206'|'254 237 250 207') mach_endian=big ;;
+                '202 254 186 190') fat_endian=big; mach_endian='' ;;
+                '190 186 254 202') fat_endian=little; mach_endian='' ;;
+            esac
+            if [ -n "$mach_endian" ]; then
+                cputype=$(u32_at "$path" 4 "$mach_endian") || {
+                    err "Mach-O cputype is unreadable."
+                    return 1
+                }
+                if [ "$cputype" != "$want_machine" ]; then
+                    err "Mach-O cputype mismatch: artifact=$cputype, target needs $want_machine."
+                    return 1
+                fi
+                ok "Mach-O, cputype=$cputype"
+                return 0
+            fi
+            nfat=$(u32_at "$path" 4 "$fat_endian") || {
+                err "Mach-O universal header is unreadable."
+                return 1
+            }
+            if [ "$nfat" -lt 1 ] || [ "$nfat" -gt 32 ]; then
+                err "Mach-O universal header has an invalid slice count: $nfat"
+                return 1
+            fi
+            matched=0
+            i=0
+            while [ "$i" -lt "$nfat" ]; do
+                off=$(( 8 + i * 20 ))
+                cputype=$(u32_at "$path" "$off" "$fat_endian") || {
+                    err "Mach-O universal slice is unreadable."
+                    return 1
+                }
+                if [ "$cputype" = "$want_machine" ]; then
+                    matched=1
+                    break
+                fi
+                i=$(( i + 1 ))
+            done
+            if [ "$matched" != 1 ]; then
+                err "Mach-O cputype mismatch: no $expect_arch slice in universal binary."
+                return 1
+            fi
+            ok "Mach-O universal binary, $expect_arch slice present"
+            return 0
+            ;;
+    esac
 
     # ---------------------------------------------------------------
     # PE / COFF (Windows)
@@ -968,10 +1025,6 @@ verify_checksum() {
 
     if ! fetch_checksum "$artifact"; then
         err "Could not download checksums.txt from ${QYVORA_BASE_URL}"
-        if [ "${QYVORA_ALLOW_UNVERIFIED:-}" = "1" ]; then
-            warn "QYVORA_ALLOW_UNVERIFIED=1 set; continuing WITHOUT checksum verification."
-            return 0
-        fi
         err "Refusing to install an artifact whose integrity cannot be checked."
         return 1
     fi
@@ -980,10 +1033,6 @@ verify_checksum() {
         && ! command -v shasum >/dev/null 2>&1 \
         && ! command -v openssl >/dev/null 2>&1; then
         err "No SHA-256 tool available (need sha256sum, shasum or openssl)."
-        if [ "${QYVORA_ALLOW_UNVERIFIED:-}" = "1" ]; then
-            warn "QYVORA_ALLOW_UNVERIFIED=1 set; continuing WITHOUT checksum verification."
-            return 0
-        fi
         return 1
     fi
 
@@ -993,10 +1042,6 @@ verify_checksum() {
           if (f == n) { print $1; exit } }' "$WORK_DIR/checksums.txt")
     if [ -z "$want" ]; then
         err "No checksum entry for $artifact in checksums.txt."
-        if [ "${QYVORA_ALLOW_UNVERIFIED:-}" = "1" ]; then
-            warn "QYVORA_ALLOW_UNVERIFIED=1 set; continuing WITHOUT checksum verification."
-            return 0
-        fi
         return 1
     fi
 
@@ -1017,23 +1062,43 @@ verify_checksum() {
 # ---------------------------------------------------------------------------
 safe_extract() {
     local archive="$1" dest="$2"
+    local listing metadata
     mkdir -p "$dest"
 
     case "$archive" in
         *.zip)
             need_cmd unzip || return 1
-            # Refuse absolute paths, parent traversal and symlink/hardlink
-            # members before unzipping anything.
-            if unzip -Z1 "$archive" 2>/dev/null | grep -qE '(^/|(^|/)\.\.(/|$))'; then
+            listing=$(unzip -Z1 "$archive" 2>/dev/null) || return 1
+            metadata=$(unzip -Z -v "$archive" 2>/dev/null) || return 1
+            if printf '%s\n' "$listing" | grep -qE '(^/|(^|[[:space:]/])\.\.(/|$|[[:space:]]))'; then
                 err "Archive contains an unsafe path; refusing to extract."
+                return 1
+            fi
+            if printf '%s\n' "$metadata" | awk '
+                $1 == "Unix" && $2 == "file" && $3 == "attributes" {
+                    if ($NF !~ /^[-d]/) bad = 1
+                }
+                END { exit bad ? 0 : 1 }'; then
+                err "Archive contains a non-regular member; refusing to extract."
                 return 1
             fi
             unzip -oq "$archive" -d "$dest"
             ;;
         *.tar.gz|*.tgz)
             need_cmd tar || return 1
-            if tar -tzf "$archive" 2>/dev/null | grep -qE '(^/|(^|/)\.\.(/|$))'; then
+            listing=$(tar -tvzf "$archive" 2>/dev/null) || {
                 err "Archive contains an unsafe path; refusing to extract."
+                return 1
+            }
+            if printf '%s\n' "$listing" | grep -qE '(^/|(^|[[:space:]/])\.\.(/|$|[[:space:]]))'; then
+                err "Archive contains an unsafe path; refusing to extract."
+                return 1
+            fi
+            if printf '%s\n' "$listing" | awk '
+                NF == 0 { next }
+                $1 !~ /^[-d]/ { bad = 1 }
+                END { exit bad ? 0 : 1 }'; then
+                err "Archive contains a non-regular member; refusing to extract."
                 return 1
             fi
             tar -xzf "$archive" -C "$dest" --no-same-owner --no-same-permissions
@@ -1172,7 +1237,7 @@ install_desktop() {
     local icon=""
     local candidate
     for candidate in "${PWD}/assets/${QYVORA_ICON}" "$WORK_DIR/src/assets/${QYVORA_ICON}" "$WORK_DIR/${QYVORA_ICON}"; do
-        if [ -f "$candidate" ]; then icon="$candidate"; break; fi
+        if [ -f "$candidate" ] && [ ! -L "$candidate" ]; then icon="$candidate"; break; fi
     done
 
     if [ -z "$icon" ]; then
@@ -1369,8 +1434,10 @@ do_install() {
                 local unpack="$WORK_DIR/unpack"
                 safe_extract "$candidate" "$unpack" || exit "$EXIT_VERIFY"
                 candidate="$unpack/${QYVORA_TOOL}"
-                [ -f "$candidate" ] || candidate="$(find "$unpack" -type f -name "${QYVORA_TOOL}*" ! -name '*.png' ! -name '*.ico' | head -1)"
-                if [ -z "$candidate" ] || [ ! -f "$candidate" ]; then
+                if [ ! -f "$candidate" ] || [ -L "$candidate" ]; then
+                    candidate="$(find "$unpack" -type f -name "${QYVORA_TOOL}*" ! -name '*.png' ! -name '*.ico' | head -1)"
+                fi
+                if [ -z "$candidate" ] || [ ! -f "$candidate" ] || [ -L "$candidate" ]; then
                     err "Archive did not contain a ${QYVORA_TOOL} executable."
                     exit "$EXIT_VERIFY"
                 fi

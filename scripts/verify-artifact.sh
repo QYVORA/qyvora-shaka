@@ -64,6 +64,26 @@ le16_at() {
     printf '%s' $(( lo + (hi << 8) ))
 }
 
+le32_at() {
+    local b0 b1 b2 b3
+    b0=$(byte_at "$1" "$2")
+    b1=$(byte_at "$1" $(( $2 + 1 )))
+    b2=$(byte_at "$1" $(( $2 + 2 )))
+    b3=$(byte_at "$1" $(( $2 + 3 )))
+    [ -n "$b0" ] && [ -n "$b1" ] && [ -n "$b2" ] && [ -n "$b3" ] || return 1
+    printf '%s' $(( b0 + b1 * 256 + b2 * 65536 + b3 * 16777216 ))
+}
+
+be32_at() {
+    local b0 b1 b2 b3
+    b0=$(byte_at "$1" "$2")
+    b1=$(byte_at "$1" $(( $2 + 1 )))
+    b2=$(byte_at "$1" $(( $2 + 2 )))
+    b3=$(byte_at "$1" $(( $2 + 3 )))
+    [ -n "$b0" ] && [ -n "$b1" ] && [ -n "$b2" ] && [ -n "$b3" ] || return 1
+    printf '%s' $(( b0 * 16777216 + b1 * 65536 + b2 * 256 + b3 ))
+}
+
 # ---------------------------------------------------------------------------
 # Expected machine code and ELF class per architecture.
 # ---------------------------------------------------------------------------
@@ -94,7 +114,7 @@ if [ "$WANT_OS" = "windows" ]; then
     fi
     ok "PE (MZ) container"
     # e_lfanew at offset 0x3c, then 'PE\0\0' at that offset.
-    lfanew=$(le16_at "$FILE" 60)
+    lfanew=$(le32_at "$FILE" 60)
     if [ -z "$lfanew" ] || [ "$lfanew" -lt 1 ] 2>/dev/null; then
         die "PE header offset (e_lfanew) is unreadable"
     fi
@@ -123,30 +143,45 @@ fi
 if [ "$WANT_OS" = "macos" ]; then
     m0=$(byte_at "$FILE" 0); m1=$(byte_at "$FILE" 1); m2=$(byte_at "$FILE" 2); m3=$(byte_at "$FILE" 3)
     # Mach-O magics as they appear on disk, in decimal (od -tu1 output):
-    #   206 250 237 254  MH_MAGIE    32-bit, little-endian
+    #   206 250 237 254  MH_MAGIC    32-bit, little-endian
     #   207 250 237 254  MH_MAGIC_64 64-bit, little-endian
     #   254 237 250 206  MH_CIGAM    32-bit, big-endian
     #   254 237 250 207  MH_CIGAM_64 64-bit, big-endian
-    #   202 190 186 190  FAT_MAGIC   universal binary
+    #   202 254 186 190  FAT_MAGIC   universal binary
     case "$m0 $m1 $m2 $m3" in
-        '206 250 237 254'|'207 250 237 254'|'254 237 250 206'|'254 237 250 207'|'202 190 186 190')
-            ok "Mach-O container" ;;
+        '206 250 237 254'|'207 250 237 254') mach_endian=little; mach_thin=1 ;;
+        '254 237 250 206'|'254 237 250 207') mach_endian=big; mach_thin=1 ;;
+        '202 254 186 190') mach_endian=big; mach_thin=0 ;;
+        '190 186 254 202') mach_endian=little; mach_thin=0 ;;
         *)
             die "not a Mach-O executable: magic was $(printf '%s %s %s %s' "${m0:-?}" "${m1:-?}" "${m2:-?}" "${m3:-?}")"
             ;;
     esac
-    # cputype is a 32-bit field at offset 4; assemble it from two 16-bit reads
-    # because le16_at is the only endian-aware helper here.
-    cpu_lo=$(le16_at "$FILE" 4)
-    cpu_hi=$(le16_at "$FILE" 6)
-    cpu=$(( cpu_lo + (cpu_hi << 16) ))
+    ok "Mach-O container"
     case "$WANT_ARCH" in
         amd64) want_cpu=$(( 0x01000007 )) ;;   # CPU_TYPE_X86_64
         arm64) want_cpu=$(( 0x0100000C )) ;;   # CPU_TYPE_ARM64
     esac
-    if [ "$cpu" != "$want_cpu" ]; then
-        die "Mach-O cputype mismatch: artifact is cputype=$cpu, $WANT_OS/$WANT_ARCH needs cputype=$want_cpu"
+    if [ "$mach_endian" = big ]; then read_u32=be32_at; else read_u32=le32_at; fi
+    if [ "$mach_thin" = 1 ]; then
+        cpu=$($read_u32 "$FILE" 4)
+        if [ "$cpu" != "$want_cpu" ]; then
+            die "Mach-O cputype mismatch: artifact is cputype=$cpu, $WANT_OS/$WANT_ARCH needs cputype=$want_cpu"
+        fi
+        ok "Mach-O cputype matches $WANT_ARCH"
+        exit 0
     fi
+    nfat=$($read_u32 "$FILE" 4)
+    [ -n "$nfat" ] && [ "$nfat" -ge 1 ] && [ "$nfat" -le 32 ] \
+        || die "Mach-O universal header has an invalid slice count: ${nfat:-unreadable}"
+    i=0
+    found=0
+    while [ "$i" -lt "$nfat" ]; do
+        cpu=$($read_u32 "$FILE" $(( 8 + i * 20 )))
+        if [ "$cpu" = "$want_cpu" ]; then found=1; break; fi
+        i=$(( i + 1 ))
+    done
+    [ "$found" = 1 ] || die "Mach-O cputype mismatch: no $WANT_ARCH slice in universal binary"
     ok "Mach-O cputype matches $WANT_ARCH"
     exit 0
 fi

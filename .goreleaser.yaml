@@ -25,10 +25,6 @@ version: 2
 
 project_name: shaka
 
-before:
-  hooks:
-    - go mod tidy
-
 builds:
   - id: shaka
     main: ./cmd/shaka
@@ -41,12 +37,14 @@ builds:
       - arm64
     flags:
       - -trimpath
+      - -buildvcs=false
     ldflags:
       - -s -w
       - -X github.com/QYVORA/qyvora-shaka/internal/version.Version={{ .Version }}
       - -X github.com/QYVORA/qyvora-shaka/internal/version.Commit={{ .FullCommit }}
-      - -X github.com/QYVORA/qyvora-shaka/internal/version.Date={{ .Date }}
+      - -X github.com/QYVORA/qyvora-shaka/internal/version.Date={{ .CommitDate }}
       - -X github.com/QYVORA/qyvora-shaka/internal/version.BuildUser=goreleaser
+    mod_timestamp: '{{ .CommitTimestamp }}'
     env:
       - CGO_ENABLED=0
 

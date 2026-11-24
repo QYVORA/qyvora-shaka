@@ -265,3 +265,16 @@ See [CONTRIBUTING.md](CONTRIBUTING.md) and
 [CODE_OF_CONDUCT.md](CODE_OF_CONDUCT.md). Report security issues per
 [SECURITY.md](SECURITY.md). Community and governance details are in
 [GOVERNANCE.md](GOVERNANCE.md).
+
+## CI pre-push checks
+
+Run these from the repository root before pushing (they mirror `.github/workflows/ci.yml`):
+
+```sh
+test -z "$(gofmt -l .)"
+go vet ./...
+go test ./...
+CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build ./...
+```
+
+CI needs the repository secret `QYVORA_CI_TOKEN` (fine-grained PAT or GitHub App token with read access to the private QYVORA Go module repositories). Without it the private-module preflight step fails with an explicit message.

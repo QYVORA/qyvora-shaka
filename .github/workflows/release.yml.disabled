@@ -40,6 +40,7 @@ jobs:
   goreleaser:
     name: build and publish (draft until complete)
     runs-on: ubuntu-latest
+    timeout-minutes: 60
     permissions:
       contents: write
     steps:
@@ -48,6 +49,17 @@ jobs:
         with:
           fetch-depth: 0
 
+      - name: Configure private module access
+        env:
+          QYVORA_CI_TOKEN: ${{ secrets.QYVORA_CI_TOKEN }}
+        run: |
+          set -euo pipefail
+          if [ -z "${QYVORA_CI_TOKEN:-}" ]; then
+            echo "::error::QYVORA_CI_TOKEN repository secret is required to fetch private QYVORA modules; see ci-audit/REPORT.md"
+            exit 1
+          fi
+          git config --global "http.https://github.com/.extraheader" "AUTHORIZATION: basic $(printf 'x-access-token:%s' "$QYVORA_CI_TOKEN" | base64 -w0)"
+          go env -w GOPRIVATE=github.com/QYVORA/*
       - name: Set up Go
         uses: actions/setup-go@0a12ed9d6a96ab950c8f026ed9f722fe0da7ef32 # v5.0.2
         with:
@@ -128,6 +140,7 @@ jobs:
     name: verify the published release
     needs: goreleaser
     runs-on: ubuntu-latest
+    timeout-minutes: 15
     permissions:
       contents: read
     steps:
